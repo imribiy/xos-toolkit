@@ -1,0 +1,575 @@
+import { ComboBox, CheckBox, LineEdit, ListView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+
+export struct BadgeD { text: string, tone: int, tooltip: string }
+export struct RowButtonD { id: string, text: string, label: string, style: int, enabled: bool }
+export struct CellRowD { id: string, label: string, cells: [string], checked: bool, tone: int, enabled: bool, selected: bool, tooltip: string, buttons: [RowButtonD] }
+export struct ColumnD { title: string, width: length }
+export struct ControlD {
+    id: string,
+    kind: int,
+    text: string,
+    style: int,
+    tone: int,
+    enabled: bool,
+    options: [string],
+    selected: int,
+    checked: bool,
+    value: string,
+    placeholder: string,
+    tooltip: string,
+    width: length,
+    max-len: int,
+    progress: float,
+    columns: [ColumnD],
+    rows: [CellRowD],
+    checkable: bool,
+    selectable: bool,
+    sortable: bool,
+    table-height: length,
+    empty-text: string,
+    has-buttons: bool,
+    buttons-width: length,
+}
+export struct RowD { controls: [ControlD], bottom: bool, filler: bool }
+export struct CardD { id: string, title: string, description: string, has-badge: bool, badge: BadgeD, rows: [RowD], highlight: bool }
+export struct PairD { a: CardD, b: CardD, two: bool }
+
+export global Modal {
+    in-out property <bool> open;
+}
+
+export global Bridge {
+    callback ctl-click(string, string);
+    callback ctl-select(string, string, int);
+    callback ctl-check(string, string, bool);
+    callback ctl-text(string, string, string);
+    callback ctl-submit(string, string, string);
+    callback row-check(string, string, int, bool);
+    callback row-button(string, string, int, string);
+    callback row-select(string, string, int);
+    callback row-activate(string, string, int);
+    callback header-click(string, string, int);
+}
+
+export component Tip inherits Rectangle {
+    in property <string> text;
+    background: Theme.bg-elevated;
+    border-color: Theme.border-strong;
+    border-width: 1px;
+    border-radius: 6px;
+    width: min(tip-text.preferred-width + 16px, 340px);
+    height: tip-text.preferred-height + 10px;
+    z: 1000;
+    tip-text := Text {
+        x: 8px;
+        y: 5px;
+        width: parent.width - 16px;
+        text: root.text;
+        wrap: word-wrap;
+        font-size: 11px;
+        color: Theme.text-primary;
+    }
+}
+
+export component XButton inherits Rectangle {
+    in property <string> text;
+    in property <int> kind;
+    in property <bool> enabled: true;
+    in property <string> tooltip;
+    in property <length> fixed-width: 0px;
+    in property <string> aid;
+    in property <string> label;
+    in property <bool> in-modal;
+    property <bool> live: root.enabled && (root.in-modal || !Modal.open);
+    callback clicked;
+    accessible-role: button;
+    accessible-label: root.label != "" ? root.label : root.text;
+    accessible-description: root.tooltip;
+    accessible-enabled: root.enabled;
+    accessible-id: root.aid;
+    accessible-action-default => { if (root.live) { root.clicked(); } }
+    min-width: max(fixed-width, lbl.preferred-width + (kind == 4 ? 4px : 32px));
+    min-height: 31px;
+    max-height: 31px;
+    horizontal-stretch: 0;
+    border-radius: 7px;
+    border-width: 1px;
+    border-color: fs.has-focus ? Theme.accent-blue : Theme.btn-border(kind);
+    background: ta.has-hover && enabled ? (Theme.dark ? Theme.btn-bg(kind).brighter(0.25) : Theme.btn-bg(kind).darker(0.04)) : Theme.btn-bg(kind);
+    opacity: enabled ? 1 : 0.45;
+    lbl := Text {
+        accessible-role: none;
+        text: root.text;
+        color: Theme.btn-fg(root.kind);
+        font-size: 12px;
+        font-weight: 600;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    fs := FocusScope {
+        enabled: root.live;
+        key-pressed(e) => {
+            if (e.repeat) { return accept; }
+            if (e.text == " " || e.text == Key.Return) {
+                root.clicked();
+                return accept;
+            }
+            return reject;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    if (ta.has-hover || fs.has-focus) && root.tooltip != "": Tip {
+        text: root.tooltip;
+        x: 0;
+        y: root.height + 4px;
+    }
+}
+
+export component BadgeView inherits Rectangle {
+    in property <string> text;
+    in property <int> tone;
+    in property <string> tooltip;
+    in property <string> aid;
+    accessible-role: AccessibleRole.text;
+    accessible-label: root.text;
+    accessible-description: root.tooltip;
+    accessible-id: root.aid;
+    background: Theme.tone-surface(tone);
+    border-color: Theme.tone-border(tone);
+    border-width: 1px;
+    border-radius: 7px;
+    min-width: t.preferred-width + 14px;
+    min-height: t.preferred-height + 6px;
+    max-height: t.preferred-height + 6px;
+    horizontal-stretch: 0;
+    vertical-stretch: 0;
+    t := Text {
+        accessible-role: none;
+        text: root.text;
+        font-size: 11px;
+        color: Theme.tone-fg(root.tone);
+        horizontal-alignment: center;
+        vertical-alignment: center;
+    }
+    ta := TouchArea { }
+    if ta.has-hover && root.tooltip != "": Tip {
+        text: root.tooltip;
+        x: root.width - self.width;
+        y: root.height + 4px;
+    }
+}
+
+component TableView inherits Rectangle {
+    in property <ControlD> c;
+    in property <string> card-id;
+    border-color: Theme.border-subtle;
+    border-width: 1px;
+    border-radius: 8px;
+    min-height: c.table-height;
+    max-height: c.table-height;
+    clip: true;
+    accessible-role: list;
+    accessible-id: card-id + "/" + c.id;
+    accessible-item-count: c.rows.length;
+    VerticalLayout {
+        padding: 1px;
+        Rectangle {
+            height: 30px;
+            background: Theme.bg-elevated;
+            HorizontalLayout {
+                padding-left: 8px;
+                padding-right: 8px;
+                spacing: 6px;
+                if c.checkable: Rectangle { width: 26px; }
+                for col[j] in c.columns: Rectangle {
+                    min-width: col.width > 0 ? col.width : 40px;
+                    max-width: col.width > 0 ? col.width : 100000px;
+                    horizontal-stretch: col.width > 0 ? 0 : 1;
+                    accessible-role: button;
+                    accessible-enabled: c.sortable;
+                    accessible-label: col.title;
+                    accessible-id: card-id + "/" + c.id + "/col" + j;
+                    accessible-action-default => { if (c.sortable && !Modal.open) { Bridge.header-click(card-id, c.id, j); } }
+                    Text {
+                        accessible-role: none;
+                        width: 100%;
+                        text: col.title;
+                        font-size: 11px;
+                        font-weight: 600;
+                        color: Theme.text-muted;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    TouchArea {
+                        enabled: c.sortable;
+                        mouse-cursor: c.sortable ? pointer : default;
+                        clicked => { Bridge.header-click(card-id, c.id, j); }
+                    }
+                }
+                if c.has-buttons: Rectangle { width: c.buttons-width; }
+            }
+        }
+        if c.rows.length == 0: Rectangle {
+            vertical-stretch: 1;
+            Text {
+                text: c.empty-text;
+                color: Theme.text-muted;
+                font-size: 12px;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        if c.rows.length > 0: ListView {
+            vertical-stretch: 1;
+            for row[i] in c.rows: Rectangle {
+                height: 32px;
+                background: row.selected ? Theme.sidebar-active : (rta.has-hover ? Theme.hover-overlay : transparent);
+                accessible-role: list-item;
+                accessible-label: row.label;
+                accessible-description: row.tooltip;
+                accessible-id: card-id + "/" + c.id + "/row/" + row.id;
+                accessible-enabled: row.enabled;
+                accessible-item-index: i;
+                accessible-item-selectable: c.selectable;
+                accessible-item-selected: row.selected;
+                accessible-action-default => { if (c.selectable && row.enabled && !Modal.open) { Bridge.row-select(card-id, c.id, i); } }
+                rfs := FocusScope {
+                    enabled: c.selectable && row.enabled && !Modal.open;
+                    key-pressed(e) => {
+                        if (e.repeat) { return accept; }
+                        if (e.text == " ") { Bridge.row-select(card-id, c.id, i); return accept; }
+                        if (e.text == Key.Return) { Bridge.row-activate(card-id, c.id, i); return accept; }
+                        return reject;
+                    }
+                }
+                Rectangle {
+                    border-color: Theme.accent-blue;
+                    border-width: rfs.has-focus ? 1px : 0px;
+                }
+                rta := TouchArea {
+                    enabled: c.selectable && row.enabled;
+                    clicked => { Bridge.row-select(card-id, c.id, i); }
+                    double-clicked => { Bridge.row-activate(card-id, c.id, i); }
+                }
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: Theme.border-subtle;
+                }
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 6px;
+                    if c.checkable: CheckBox {
+                        accessible-label: row.label;
+                        accessible-id: card-id + "/" + c.id + "/row/" + row.id + "/check";
+                        width: 26px;
+                        checked: row.checked;
+                        enabled: row.enabled && c.enabled;
+                        toggled => { Bridge.row-check(card-id, c.id, i, self.checked); }
+                    }
+                    for cell[j] in row.cells: Text {
+                        accessible-role: none;
+                        min-width: c.columns[j].width > 0 ? c.columns[j].width : 40px;
+                        max-width: c.columns[j].width > 0 ? c.columns[j].width : 100000px;
+                        horizontal-stretch: c.columns[j].width > 0 ? 0 : 1;
+                        text: cell;
+                        font-size: 12px;
+                        color: row.enabled ? Theme.row-tone(row.tone) : Theme.text-muted;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    if c.has-buttons: HorizontalLayout {
+                        width: c.buttons-width;
+                        spacing: 6px;
+                        alignment: end;
+                        for b in row.buttons: XButton {
+                            text: b.text;
+                            kind: b.style;
+                            enabled: b.enabled && c.enabled;
+                            aid: card-id + "/" + c.id + "/row/" + row.id + "/" + b.id;
+                            label: b.label;
+                            clicked => { Bridge.row-button(card-id, c.id, i, b.id); }
+                        }
+                    }
+                }
+                if rta.has-hover && row.tooltip != "": Tip {
+                    text: row.tooltip;
+                    x: 40px;
+                    y: parent.height - 2px;
+                }
+            }
+        }
+    }
+}
+
+export component ControlView inherits Rectangle {
+    in property <ControlD> c;
+    in property <string> card-id;
+    horizontal-stretch: (c.kind == 4 || c.kind == 5 || c.kind == 7 || c.kind == 8 || c.kind == 9 || c.kind == 10 || c.kind == 11 || (c.kind == 3 && c.width == 0)) ? 1 : 0;
+    VerticalLayout {
+        alignment: center;
+        if c.kind == 0: XButton {
+            text: c.text;
+            kind: c.style;
+            enabled: c.enabled;
+            tooltip: c.tooltip;
+            fixed-width: c.width;
+            aid: card-id + "/" + c.id;
+            clicked => { Bridge.ctl-click(card-id, c.id); }
+        }
+        if c.kind == 1: Rectangle {
+            property <int> ext: c.selected;
+            changed ext => { cb.current-index = ext; }
+            min-width: c.width > 0 ? c.width : 160px;
+            max-width: c.width > 0 ? c.width : 100000px;
+            cb := ComboBox {
+                accessible-id: card-id + "/" + c.id;
+                accessible-description: c.tooltip;
+                width: 100%;
+                model: c.options;
+                current-index: c.selected;
+                enabled: c.enabled;
+                selected(v) => { Bridge.ctl-select(card-id, c.id, self.current-index); }
+            }
+        }
+        if c.kind == 2: Rectangle {
+            property <bool> ext: c.checked;
+            changed ext => { chk.checked = ext; }
+            min-width: chk.preferred-width;
+            min-height: chk.preferred-height;
+            chk := CheckBox {
+                accessible-id: card-id + "/" + c.id;
+                accessible-description: c.tooltip;
+                text: c.text;
+                checked: c.checked;
+                enabled: c.enabled;
+                toggled => { Bridge.ctl-check(card-id, c.id, self.checked); }
+            }
+        }
+        if c.kind == 3: Rectangle {
+            property <string> ext: c.value;
+            changed ext => { if (!le.has-focus) { le.text = ext; } }
+            min-width: c.width > 0 ? c.width : 120px;
+            max-width: c.width > 0 ? c.width : 100000px;
+            min-height: le.preferred-height;
+            le := LineEdit {
+                accessible-id: card-id + "/" + c.id;
+                accessible-label: c.placeholder;
+                accessible-description: c.tooltip;
+                width: 100%;
+                text: c.value;
+                placeholder-text: c.placeholder;
+                enabled: c.enabled;
+                edited(t) => { Bridge.ctl-text(card-id, c.id, t); }
+                accepted(t) => { Bridge.ctl-submit(card-id, c.id, t); }
+            }
+        }
+        if c.kind == 4: Text {
+            accessible-id: card-id + "/" + c.id;
+            text: c.text;
+            wrap: word-wrap;
+            font-size: 12px;
+            color: c.tone == 0 ? Theme.text-primary : Theme.tone-fg(c.tone);
+        }
+        if c.kind == 5: Text {
+            accessible-id: card-id + "/" + c.id;
+            text: c.text;
+            wrap: word-wrap;
+            font-size: 12px;
+            color: c.tone == 0 ? Theme.text-secondary : Theme.tone-fg(c.tone);
+        }
+        if c.kind == 6: Text {
+            accessible-id: card-id + "/" + c.id;
+            text: c.text;
+            font-size: 11px;
+            font-weight: 600;
+            color: Theme.text-muted;
+        }
+        if c.kind == 7: Rectangle {
+            accessible-role: AccessibleRole.text;
+            accessible-label: c.text + ": " + c.value;
+            accessible-id: card-id + "/" + c.id;
+            background: Theme.bg-card;
+            border-color: Theme.card-border;
+            border-width: 1px;
+            border-radius: 12px;
+            VerticalLayout {
+                padding-left: 18px;
+                padding-right: 18px;
+                padding-top: 14px;
+                padding-bottom: 14px;
+                spacing: 5px;
+                Text {
+                    accessible-role: none;
+                    text: c.text;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: Theme.text-muted;
+                }
+                Text {
+                    accessible-role: none;
+                    text: c.value;
+                    font-size: 24px;
+                    color: c.tone == 0 ? Theme.text-primary : Theme.tone-fg(c.tone);
+                }
+            }
+        }
+        if c.kind == 8: TableView {
+            c: c;
+            card-id: card-id;
+        }
+        if c.kind == 9: VerticalLayout {
+            spacing: 4px;
+            Rectangle {
+                accessible-role: progress-indicator;
+                accessible-label: c.text;
+                accessible-id: card-id + "/" + c.id;
+                accessible-value: round(max(0, min(1, c.progress)) * 100) + "%";
+                height: 6px;
+                border-radius: 3px;
+                background: Theme.bg-elevated;
+                Rectangle {
+                    x: 0;
+                    width: parent.width * max(0, min(1, c.progress));
+                    height: parent.height;
+                    border-radius: 3px;
+                    background: Theme.accent-blue;
+                }
+            }
+            if c.text != "": Text {
+                text: c.text;
+                font-size: 11px;
+                color: Theme.text-secondary;
+            }
+        }
+        if c.kind == 10: Rectangle { }
+        if c.kind == 11: Text {
+            accessible-id: card-id + "/" + c.id;
+            text: c.text;
+            wrap: word-wrap;
+            font-size: 12px;
+            font-family: Theme.mono-font;
+            color: Theme.text-primary;
+        }
+        if c.kind == 12: HorizontalLayout {
+            alignment: start;
+            BadgeView {
+                text: c.text;
+                tone: c.tone;
+                tooltip: c.tooltip;
+                aid: card-id + "/" + c.id;
+            }
+        }
+    }
+}
+
+export component RowView inherits VerticalLayout {
+    in property <RowD> rd;
+    in property <string> card-id;
+    vertical-stretch: rd.bottom ? 1 : 0;
+    alignment: rd.bottom ? end : start;
+    if rd.filler: FlexboxLayout {
+        spacing: 8px;
+        alignment: start;
+        cross-axis-alignment: center;
+        for ctl in rd.controls: ControlView {
+            c: ctl;
+            card-id: card-id;
+        }
+    }
+    if !rd.filler: HorizontalLayout {
+        spacing: 8px;
+        for ctl in rd.controls: ControlView {
+            c: ctl;
+            card-id: card-id;
+        }
+    }
+}
+
+export component CardView inherits Rectangle {
+    in property <CardD> card;
+    background: card.highlight ? Theme.accent-blue.transparentize(0.7) : Theme.bg-card;
+    animate background { duration: 1500ms; easing: ease-out; }
+    border-color: Theme.card-border;
+    border-width: 1px;
+    border-radius: 12px;
+    accessible-role: groupbox;
+    accessible-label: card.title;
+    accessible-id: card.id;
+    VerticalLayout {
+        padding-left: 18px;
+        padding-right: 18px;
+        padding-top: 16px;
+        padding-bottom: 16px;
+        spacing: 8px;
+        if card.title != "" || card.has-badge: HorizontalLayout {
+            spacing: 8px;
+            Text {
+                accessible-role: none;
+                text: card.title;
+                font-size: 15px;
+                font-weight: 600;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+                horizontal-stretch: 1;
+                vertical-alignment: center;
+            }
+            if card.has-badge: VerticalLayout {
+                alignment: start;
+                BadgeView {
+                    text: card.badge.text;
+                    tone: card.badge.tone;
+                    tooltip: card.badge.tooltip;
+                    aid: card.id + "/badge";
+                }
+            }
+        }
+        if card.description != "": VerticalLayout {
+            padding-bottom: 4px;
+            Text {
+                accessible-id: card.id + "/description";
+                text: card.description;
+                font-size: 12px;
+                color: Theme.text-secondary;
+                wrap: word-wrap;
+            }
+        }
+        for r in card.rows: RowView {
+            rd: r;
+            card-id: card.id;
+        }
+    }
+}
+
+export component PairView inherits VerticalLayout {
+    in property <PairD> pair;
+    in property <bool> wide;
+    in property <length> avail;
+    callback scroll-me(length);
+    property <bool> hl: pair.a.highlight || pair.b.highlight;
+    changed hl => { if (hl) { scroll-me(self.y); } }
+    init => { if (hl) { scroll-me(self.y); } }
+    padding-bottom: 12px;
+    if wide && pair.two: HorizontalLayout {
+        spacing: 10px;
+        CardView {
+            card: pair.a;
+            width: (root.avail - 10px) / 2;
+        }
+        CardView {
+            card: pair.b;
+            width: (root.avail - 10px) / 2;
+        }
+    }
+    if !(wide && pair.two): VerticalLayout {
+        spacing: 12px;
+        CardView { card: pair.a; }
+        if pair.two: CardView { card: pair.b; }
+    }
+}

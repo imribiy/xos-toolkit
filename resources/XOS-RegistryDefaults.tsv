@@ -1,0 +1,85 @@
+# XOS Windows default registry values, applied at the end of Uninstall XOS
+# Measured on clean Windows installs, builds 17763 to 28000, 2026-09-25
+# Columns: key, value name, kind (dword, sz, delete), data, builds (* or a comma list of build numbers that ship the value)
+# A delete row removes a value XOS writes that clean Windows does not have. A row whose builds exclude the running build is skipped.
+HKCU\Control Panel\Mouse	MouseSpeed	sz	1	*
+HKCU\Control Panel\Mouse	MouseThreshold1	sz	6	*
+HKCU\Control Panel\Mouse	MouseThreshold2	sz	10	*
+HKCU\Control Panel\Accessibility\StickyKeys	Flags	sz	510	*
+HKCU\Control Panel\Accessibility\ToggleKeys	Flags	sz	62	*
+HKCU\Control Panel\Accessibility\MouseKeys	Flags	sz	62	*
+HKCU\Control Panel\Accessibility\HighContrast	Flags	sz	126	*
+HKCU\Control Panel\Accessibility\Keyboard Response	Flags	sz	126	*
+HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile	NetworkThrottlingIndex	dword	10	*
+HKLM\SYSTEM\CurrentControlSet\Control\FileSystem	LongPathsEnabled	dword	0	*
+HKLM\SYSTEM\CurrentControlSet\Control	SvcHostSplitThresholdInKB	dword	3670016	*
+HKLM\SYSTEM\CurrentControlSet\Services\BFE	SvcHostSplitDisable	dword	1	*
+HKLM\SYSTEM\CurrentControlSet\Services\mpssvc	SvcHostSplitDisable	dword	1	*
+HKLM\SYSTEM\CurrentControlSet\Services\RasMan	SvcHostSplitDisable	dword	1	*
+HKLM\SYSTEM\CurrentControlSet\Services\PlugPlay	SvcHostSplitDisable	dword	1	19045,22631,26200,26300
+HKLM\SYSTEM\CurrentControlSet\Services\DcomLaunch	SvcHostSplitDisable	dword	1	26200,26300
+HKLM\SYSTEM\CurrentControlSet\Services\Power	SvcHostSplitDisable	dword	1	26200,26300
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Device Metadata	PreventDeviceMetadataFromNetwork	dword	0	*
+HKLM\SOFTWARE\Microsoft\PolicyManager\default\Experience\AllowCortana	value	dword	1	*
+HKLM\SOFTWARE\Microsoft\PolicyManager\default\System\AllowExperimentation	value	dword	1	*
+HKLM\SOFTWARE\Microsoft\PolicyManager\default\Connectivity\DisableCrossDeviceResume	value	dword	0	22631,26200,26300
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WTDS\FeatureFlags	BlockUxDisabled	dword	0	22631,26200,26300
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WTDS\FeatureFlags	TelemetryCallsEnabled	dword	0	22631,26200
+HKLM\Software\Microsoft\SQMClient\Windows	CEIPEnable	dword	0	*
+HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager	FeatureManagementEnabled	dword	0	*
+HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager	RotatingLockScreenEnabled	dword	1	*
+HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager	RotatingLockScreenOverlayEnabled	dword	1	*
+HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager	SoftLandingEnabled	dword	1	*
+HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager	SystemPaneSuggestionsEnabled	dword	1	*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced	DisablePreviewDesktop	dword	1	22631,26200,26300
+HKLM\SOFTWARE\Microsoft\Input	IsInputAppPreloadEnabled	delete		*
+HKCU\Software\Microsoft\Speech_OneCore\Preferences	ModelDownloadAllowed	delete		*
+HKCU\Software\Microsoft\Speech_OneCore\Preferences	VoiceActivationOn	delete		*
+HKCU\Software\Microsoft\Speech_OneCore\Preferences	VoiceActivationEnableAboveLockscreen	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo	Enabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	BingSearchEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	CanCortanaBeEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	CortanaConsent	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	CortanaEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	DeviceHistoryEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	DisableSearchBoxSuggestions	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	HistoryViewEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\Search	VoiceShortcut	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\SearchSettings	IsAADCloudSearchEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\SearchSettings	IsDynamicSearchBoxEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\SearchSettings	IsMSACloudSearchEnabled	delete		*
+HKCU\Software\Policies\Microsoft\Windows\WindowsUpdate\AU	AUOptions	delete		*
+HKLM\SOFTWARE\Classes\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}	System.IsPinnedToNameSpaceTree	delete		*
+HKLM\SOFTWARE\Classes\WOW6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}	System.IsPinnedToNameSpaceTree	delete		*
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\OOBE	DisableVoice	delete		*
+HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\Consent	DefaultOverrideBehavior	delete		*
+HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting	Disabled	delete		*
+HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting	DisableArchive	delete		*
+HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting	DisableWerUpload	delete		*
+HKLM\SOFTWARE\Policies\Microsoft\Windows\Windows Error Reporting	LoggingDisabled	delete		*
+HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI	DisableAIDataAnalysis	delete		*
+HKLM\SOFTWARE\Policies\Microsoft\Windows\System	dontdisplaylastusername	delete		*
+HKLM\SOFTWARE\Policies\Microsoft\Windows\GameDVR	AllowAutoGameMode	delete		*
+HKCU\Software\Microsoft\GameBar	AllowAutoGameMode	delete		*
+HKCU\Software\Microsoft\GameBar	AutoGameModeEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR	AppCaptureEnabled	delete		*
+HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR	GameDVR_Enabled	delete		*
+HKCU\System\GameConfigStore	GameDVR_Enabled	dword	1	*
+HKCU\System\GameConfigStore	GameDVR_FSEBehaviorMode	dword	2	19045,22631,26300
+HKCU\System\GameConfigStore	GameDVR_FSEBehaviorMode	dword	0	26200
+HKCU\System\GameConfigStore	GameDVR_HonorUserFSEBehaviorMode	dword	0	*
+HKCU\System\GameConfigStore	GameDVR_DXGIHonorFSEWindowsCompatible	dword	0	*
+HKCU\System\GameConfigStore	GameDVR_EFSEFeatureFlags	dword	0	*
+HKLM\SOFTWARE\Policies\Microsoft\Windows\System	AllowClipboardHistory	delete		*
+HKCU\Software\Microsoft\Clipboard	EnableClipboardHistory	delete		*
+# HKDU rows are the Default user profile hive (C:\Users\Default\NTUSER.DAT), loaded by the uninstall; the playbook writes the same values there for new accounts.
+HKDU\Software\Microsoft\Windows\CurrentVersion\PushNotifications	ToastEnabled	delete		*
+HKDU\Software\Microsoft\Clipboard	EnableClipboardHistory	delete		*
+HKDU\Software\Microsoft\GameBar	AllowAutoGameMode	delete		*
+HKDU\Software\Microsoft\GameBar	AutoGameModeEnabled	delete		*
+HKDU\Software\Microsoft\GameBar	ShowStartupPanel	delete		*
+HKDU\Software\Microsoft\GameBar	UseNexusForGameBarEnabled	delete		*
+HKDU\Software\Microsoft\Windows\CurrentVersion\GameDVR	AppCaptureEnabled	delete		*
+HKDU\Software\Microsoft\Windows\CurrentVersion\GameDVR	AudioCaptureEnabled	delete		*
+HKDU\Software\Microsoft\Windows\CurrentVersion\GameDVR	CursorCaptureEnabled	delete		*
+HKDU\Software\Microsoft\Windows\CurrentVersion\GameDVR	GameDVR_Enabled	delete		*

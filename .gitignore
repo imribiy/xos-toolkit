@@ -1,0 +1,8 @@
+/target/
+# Third-party files, download them as described in README.md
+resources/MinSudo.exe
+resources/chocolatey-*.msi
+resources/Nvidia Profile Inspector/nvidiaProfileInspector.exe
+resources/Nvidia Profile Inspector/nvidiaProfileInspector.exe.config
+resources/Nvidia Profile Inspector/nvidiaProfileInspector.pdb
+resources/Nvidia Profile Inspector/Reference.xml

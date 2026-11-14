@@ -1,0 +1,25 @@
+[package]
+name = "xos-page-troubleshoot"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+xos-core.workspace = true
+xos-sys.workspace = true
+xos-helpers.workspace = true
+xos-winupdate.workspace = true
+xos-page-system.workspace = true
+xos-page-network.workspace = true
+xos-page-update.workspace = true
+xos-page-apps.workspace = true
+xos-uninstall = { path = "../xos-uninstall" }
+windows.workspace = true
+winreg.workspace = true
+anyhow.workspace = true
+regex.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+flate2 = "1.1"

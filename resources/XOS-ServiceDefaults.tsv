@@ -1,0 +1,735 @@
+# XOS Windows default service baseline
+# Merged from 8 clean Professional captures: 17763, 18363, 19044, 19045, 22631, 26200, 26300, 28000
+# Per-user service instances, the _xxxxx suffixed ones, are folded into their base name.
+# Start is the decimal start type: 0 boot, 1 system, 2 automatic, 3 manual, 4 disabled.
+# Overrides are Build:Value and replace Start on that build only. Build/EditionID:Value applies only where HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion EditionID matches, and wins over Build:Value.
+# Managed is 1 for a service XOS touches and 0 for reference data. Only managed rows are restored.
+# Category is raw for a straight Start write, defender for the full Defender workflow, empty for reference.
+# Delayed is * or a comma list of builds where Windows ships the service as automatic (delayed start), DelayedAutostart=1. It applies only where Start resolves to 2. It is maintained for managed rows only, the ones the Toolkit restores; reference rows leave it empty even where Windows starts the service delayed (CDPSvc, DispBrokerDesktopSvc, edgeupdate, OneSyncSvc, sppsvc, StorSvc, whesvc, W32Time on some builds). Measured on clean Windows installs.
+#Name	Start	Overrides	Managed	Category	Delayed
+1394ohci	3		0	
+3ware	0		0	
+AarSvc	3		0	
+ACPI	0		0	
+AcpiAudioCompositor	3		0	
+AcpiAudioCompositorInbox	3		0	
+AcpiDev	3		0	
+acpiex	0		1	raw
+acpipagr	3		1	raw
+AcpiPmi	3		1	raw
+acpitime	3		1	raw
+Acx01000	3		0	
+ADP80XX	0		0	
+ADPSvc	3		0	
+AFD	1		0	
+afunix	1		0	
+ahcache	1		0	
+AJRouter	3		0	
+ALG	3		0	
+amdfendr	4		1	raw
+amdfendrmgr	4		1	raw
+amdgpio2	3		0	
+amdi2c	3		0	
+AmdK8	3		0	
+AmdPPM	3		0	
+amdsata	0		0	
+amdsbs	0		0	
+amdwps	0		0	
+amdxata	0		0	
+AppID	3		0	
+AppIDSvc	3		0	
+Appinfo	3		1	
+AppleSSD	0		0	
+applockerfltr	3		0	
+AppMgmt	3		0	
+AppReadiness	3		0	
+AppVClient	4		0	
+AppvStrm	3		0	
+AppvVemgr	3		0	
+AppvVfs	3		0	
+AppXSvc	3	26200:2,26300:2	0	
+ApxSvc	3		0	
+arcsas	0		0	
+AssignedAccessManagerSvc	3		0	
+AsyncMac	3		0	
+atapi	0		0	
+AudioEndpointBuilder	2		0	
+Audiosrv	2		0	
+autotimesvc	3		0	
+AxInstSV	3		0	
+b06bdrv	0		0	
+bam	1		1	raw
+BasicDisplay	1		0	
+BasicRender	1		0	
+BcastDVRUserService	3		0	
+bcmfn2	3		0	
+BDESVC	3		0	
+Beep	1		0	
+BFE	2		1	
+bfs	2		0	
+bindflt	2		0	
+BITS	2		1		*
+BluetoothUserService	3		1	
+bowser	3		0	
+BrokerInfrastructure	2		0	
+BTAGService	3		1	
+BthA2dp	3		1	
+BthAvctpSvc	3		1	
+BthEnum	3		1	
+BthHFEnum	3		1	
+BthLEEnum	3		1	
+BthMini	3		1	
+BTHMODEM	3		1	
+BTHPORT	3		1	
+bthserv	3		1	
+BTHUSB	3		1	
+bttflt	0		1	raw
+buttonconverter	3		0	
+CAD	3		0	
+camsvc	3	26200:2,26300:2	0	
+CapImg	3		0	
+CaptureService	3		0	
+cbdhsvc	2	19045:3	1		*
+CDD	3		0	
+cdfs	4		0	
+CDPSvc	2		0	
+CDPUserSvc	2		0	
+cdrom	1		0	
+CertPropSvc	3		0	
+cht4iscsi	0		0	
+cht4vbd	3		0	
+CimFS	1		0	
+circlass	3		0	
+CldFlt	2		0	
+CLFS	0		0	
+ClipSVC	3		0	
+CloudBackupRestoreSvc	3		0	
+cloudidsvc	3		0	
+CmBatt	3		1	raw
+CNG	0		0	
+cnghwassist	4		0	
+CompositeBus	3		0	
+COMSysApp	3		0	
+condrv	3		0	
+ConsentUxUserSvc	3		0	
+CoreMessagingRegistrar	2		0	
+CredentialEnrollmentManagerUserSvc	3		0	
+CryptSvc	2		0	
+CSC	1		1	raw
+CscService	3		1	raw
+cxltype3	0		0	
+dam	1		1	raw
+DcomLaunch	2		0	
+dcsvc	3		0	
+defragsvc	3		0	
+DeviceAssociationBrokerSvc	3		0	
+DeviceAssociationService	3		0	
+DeviceInstall	3		0	
+DevicePickerUserSvc	3		0	
+DevicesFlowUserSvc	3		0	
+devmap	3		0	
+DevQueryBroker	3		0	
+Dfsc	1		0	
+Dhcp	2		1	
+diagnosticshub.standardcollector.service	3		1	raw
+diagsvc	3		1	raw
+DiagTrack	2		1	raw
+DialogBlockingService	4		0	
+disk	0		0	
+DispBrokerDesktopSvc	2		0	
+DisplayEnhancementService	3		0	
+DisplayMux	3		0	
+DmEnrollmentSvc	3		0	
+dmvsc	3		0	
+dmwappushservice	3		1	raw
+Dnscache	2		1	
+DoSvc	2		1		*
+dot3svc	3		0	
+DPS	2		1	raw
+drmkaud	3		0	
+DsmSvc	3		0	
+DsSvc	3		1	raw
+DusmSvc	2		1	raw
+DXGKrnl	1	26200:0,26300:0	0	
+e1i65x64	3		0	
+e1i68x64	3		0	
+e1iexpress	3		0	
+Eaphost	3		0	
+ebdrv	0		0	
+ebdrv0	0		0	
+edgeupdate	2		0	
+edgeupdatem	3		0	
+EFS	3		0	
+EhStorClass	0		0	
+EhStorTcgDrv	0		0	
+embeddedmode	3		0	
+EntAppSvc	3		0	
+ErrDev	3		0	
+EventLog	2		1	
+EventSystem	2		0	
+ExecutionContext	3		0	
+exfat	3		0	
+fastfat	3		0	
+Fax	3		0	
+fdc	3		0	
+fdPHost	3		0	
+FDResPub	3		0	
+fhsvc	3		0	
+FileCrypt	1		0	
+FileInfo	0		0	
+FileSyncHelper	3		0	
+Filetrace	3		0	
+flpydisk	3		0	
+FltMgr	0		0	
+FontCache	2		0	
+FrameServer	3		0	
+FrameServerMonitor	3		0	
+Fs_Rec	0		0	
+FsDepends	3		0	
+fvevol	0		0	
+GameInputSvc	3		0	
+gencounter	3		1	raw
+genericusbfn	3		0	
+GenPass	0		0	
+GPIOClx0101	3		0	
+gpsvc	2		0	
+GpuEnergyDrv	1		1	raw
+GraphicsPerfSvc	3		1	raw
+HdAudAddService	3		0	
+HDAudBus	3		0	
+HidBatt	3		0	
+HidBth	3		1	
+hidi2c	3		0	
+hidinterrupt	3		0	
+HidIr	3		0	
+hidserv	3		0	
+hidspi	3		0	
+HidSpiCx	3		0	
+HidUsb	3		0	
+hpatchmon	3		0	
+HpSAMD	0		0	
+Hsp	3		0	
+HTTP	3		0	
+hvcrash	4		0	
+HvHost	3		0	
+hvservice	3		0	
+HwNClx0101	3		0	
+hwpolicy	0		0	
+hyperkbd	3		1	raw
+HyperVideo	3		1	raw
+I3CHost	3		0	
+i8042prt	3		0	
+iagpio	3		0	
+iai2c	3		0	
+iaLPSS2i_GPIO2	3		0	
+iaLPSS2i_GPIO2_BXT_P	3		0	
+iaLPSS2i_GPIO2_CNL	3		0	
+iaLPSS2i_GPIO2_GLK	3		0	
+iaLPSS2i_I2C	3		0	
+iaLPSS2i_I2C_BXT_P	3		0	
+iaLPSS2i_I2C_CNL	3		0	
+iaLPSS2i_I2C_GLK	3		0	
+iaLPSSi_GPIO	3		0	
+iaLPSSi_I2C	3		0	
+iaStorAVC	0		0	
+iaStorV	0		0	
+ibbus	3		0	
+icssvc	3		0	
+IKEEXT	3		1	
+IndirectKmd	3		0	
+InstallService	3		0	
+intelide	0		0	
+intelpep	0		0	
+intelpmax	3		0	
+IntelPMT	0		0	
+intelppm	3		0	
+InventorySvc	2	22631:3	1	raw	26200,26300
+iorate	0		0	
+IpFilterDriver	3		0	
+iphlpsvc	2		0	
+IPMIDRV	3		0	
+IPNAT	3		0	
+IPT	3		0	
+IpxlatCfgSvc	3		0	
+irda	3		0	
+IRENUM	3		0	
+irmon	3		0	
+isapnp	0		0	
+iScsiPrt	3		0	
+IsoEnvBroker	3		0	
+IsolationSession	3		0	
+ItSas35i	0		0	
+kbdclass	3		0	
+kbdhid	3		0	
+kbldfltr	3		0	
+kdnic	3		0	
+kdnic_legacy	3		0	
+KernelFSFormatter	3		0	
+KeyIso	3		0	
+KSecDD	0		0	
+KSecPkg	0		0	
+KslD	3		0	
+ksthunk	3		0	
+KtmRm	3		0	
+LanmanServer	2		0	
+LanmanWorkstation	2		0	
+lfsvc	3		0	
+LicenseManager	3		0	
+lltdio	2		0	
+lltdsvc	3		0	
+lmhosts	3		0	
+LocalKdc	3		0	
+LSI_SAS	0		0	
+LSI_SAS2i	0		0	
+LSI_SAS3i	0		0	
+LSI_SSS	0		0	
+LSM	2		0	
+luafv	2		1	
+LxpSvc	3		0	
+MapsBroker	2		1	raw	*
+mausbhost	3		0	
+mausbip	3		0	
+MbbCx	3		0	
+McmSvc	3		0	
+McpManagementService	3		1	raw
+MDCoreSvc	2		1	defender
+megasas	0		0	
+megasas2i	0		0	
+megasas35i	0		0	
+megasr	0		0	
+MessagingService	3		0	
+Microsoft_Bluetooth_AvrcpTransport	3		1	
+MicrosoftCopilotElevationService	3		1	raw
+MicrosoftEdgeElevationService	3		1	raw
+midisrv	3		1	raw
+MixedRealityOpenXRSvc	3		0	
+mlx4_bus	3		0	
+MMCSS	2		0	
+Modem	3		0	
+monitor	3		0	
+mouclass	3		0	
+mouhid	3		0	
+mountmgr	0		0	
+mpi3drvi	0		0	
+mpsdrv	3		0	
+mpssvc	2		1	
+MRxDAV	3		0	
+mrxsmb	3		0	
+mrxsmb20	3		0	
+MsBridge	3		0	
+MSDTC	3		1	raw
+Msfs	1		0	
+msgpiowin32	3		0	
+mshidkmdf	3		0	
+mshidumdf	3		0	
+msisadrv	0		0	
+MSiSCSI	3		0	
+msiserver	3		0	
+MsKeyboardFilter	4		0	
+MSKSSRV	3		0	
+MsLldp	2		0	
+MSPCLOCK	3		0	
+MSPQM	3		0	
+MsQuic	3		0	
+MsQuicPrev	3		0	
+MsRPC	3		0	
+MsSecCore	0		1	defender
+MsSecFlt	3		1	defender
+MsSecWfp	3		1	defender
+mssmbios	1		0	
+MSTEE	3		0	
+MTConfig	3		0	
+Mup	0		0	
+mvumis	0		0	
+NativeWifiP	3		0	
+NaturalAuthentication	3		0	
+NcaSvc	3		0	
+NcbService	3		0	
+NcdAutoSetup	3		0	
+ndfltr	3		0	
+NDIS	0		0	
+NdisCap	1		0	
+NdisImPlatform	3		0	
+NdisTapi	3		0	
+Ndisuio	3		0	
+NdisVirtualBus	3		0	
+NdisWan	3		0	
+ndiswanlegacy	3		0	
+NDKPerf	3		0	
+NDKPing	3		0	
+ndproxy	3		0	
+Ndu	2		1	raw
+NetAdapterCx	3		0	
+NetBIOS	1		0	
+NetBT	1		1	raw
+Netlogon	3		0	
+Netman	3		0	
+netprofm	3		1	
+NetSetupSvc	3		0	
+NetTcpPortSharing	4		0	
+netvsc	3		0	
+NetworkPrivacyPolicy	2		0	
+NgcCtnrSvc	3		0	
+NgcSvc	3		0	
+NlaSvc	2	22631:3,26200:3,26300:3	1	
+Npfs	1		0	
+NPSMSvc	3		0	
+npsvctrig	1		0	
+nsi	2		0	
+nsiproxy	1		0	
+Ntfs	3		0	
+Null	1		0	
+nvdimm	0		0	
+nvmedisk	0		0	
+nvraid	0		0	
+nvstor	0		0	
+OneDrive Updater Service	3		0	
+OneSyncSvc	2	26300:3	0	
+p2pimsvc	3		0	
+p2psvc	3		0	
+P9Rdr	3		0	
+P9RdrService	3		0	
+Parport	3		1	
+partmgr	0		0	
+PcaSvc	2	19045:3	1	raw	*
+pci	0		0	
+pciide	0		0	
+pcmcia	0		0	
+pcw	0		0	
+pdc	0		0	
+PEAUTH	2		0	
+PeerDistSvc	3		0	
+PenService	3		0	
+perceptionsimulation	3		0	
+percsas2i	0		0	
+percsas3i	0		0	
+PerfHost	3		0	
+PhoneSvc	3		0	
+PimIndexMaintenanceSvc	3		0	
+PktMon	3		0	
+PktMonApi	3		0	
+pla	3		0	
+PlugPlay	3		0	
+PlutonHeci	3		0	
+PlutonHsp2	3		0	
+pmem	0		0	
+PNPMEM	3		0	
+PNRPAutoReg	3		0	
+PNRPsvc	3		0	
+PolicyAgent	3		1	
+portcfg	3		0	
+Power	2		0	
+PptpMiniport	3		0	
+PrintDeviceConfigurationService	3		1	raw
+PrintNotify	3		1	raw
+PrintScanBrokerService	3		1	raw
+PrintWorkflowUserSvc	3		1	raw
+PRM	0		0	
+Processor	3		0	
+ProfSvc	2		0	
+Psched	1		0	
+PushToInstall	3		0	
+pvscsi	0		0	
+QWAVE	3		0	
+QWAVEdrv	3		0	
+Ramdisk	0	26200:3,26300:3	0	
+RasAcd	3		0	
+RasAgileVpn	3		0	
+RasAuto	3		1	
+Rasl2tp	3		0	
+RasMan	3		1	
+RasPppoe	3		0	
+RasSstp	3		1	
+rdbss	1		0	
+rdpbus	3		0	
+RDPDR	3		0	
+RdpVideoMiniport	3		0	
+rdyboost	0		0	
+ReFS	3		0	
+refsdedupsvc	3		0	
+ReFSv1	3		0	
+RemoteAccess	4		0	
+RemoteRegistry	4		0	
+RetailDemo	3		1	raw
+RFCOMM	3		1	
+rhproxy	3		0	
+RmSvc	3		0	
+RoutePolicy	3		0	
+RpcEptMapper	2		0	
+RpcLocator	3		0	
+RpcSs	2		0	
+rspndr	2		0	
+s3cap	3		0	
+SamSs	2		0	
+sbp2port	0		0	
+SCardSvr	3		0	
+ScDeviceEnum	3		0	
+scfilter	3		0	
+Schedule	2		0	
+scmbus	0		0	
+SCPolicySvc	3		0	
+sdbus	3		0	
+SdcaHid	3		0	
+SdcaHidInbox	3		0	
+SdcaMfd	3		0	
+SdcaMfdInbox	3		0	
+SDFRd	3		0	
+SDRSVC	3		0	
+sdstor	3		0	
+seclogon	3		0	
+SecurityHealthService	3		1	defender
+SEMgrSvc	3		0	
+SENS	2		0	
+Sense	3		1	defender
+SensorDataService	3		0	
+SensorService	3		0	
+SensrSvc	3		0	
+SerCx	3		0	
+SerCx2	3		0	
+Serenum	3		1	
+Serial	3		1	
+sermouse	3		1	
+SessionEnv	3		1	raw
+sfloppy	3		0	
+SgrmAgent	4		0	
+SgrmBroker	2		1	defender	*
+SharedAccess	3		0	
+SharedRealitySvc	3		0	
+ShellHWDetection	2		0	
+shpamsvc	4		0	
+SiSRaid2	0		0	
+SiSRaid4	0		0	
+SmartSAMD	0		0	
+smbdirect	3		0	
+smphost	3		0	
+SmsRouter	3		0	
+SNMPTrap	3		0	
+spaceparser	3		1	
+spaceport	0		0	
+SpatialGraphFilter	3		0	
+SpbCx	3		0	
+spectrum	3		0	
+Spooler	2		1	raw
+sppsvc	2		0	
+srv2	3		0	
+srvnet	3		0	
+SSDPSRV	3		0	
+ssh-agent	4		0	
+SstpSvc	3		1	
+StateRepository	2	19045:3	0	
+stexstor	0		0	
+stisvc	3		1	raw
+storahci	0		0	
+storflt	0		1	
+stornvme	0		0	
+storqosflt	2		0	
+StorSvc	2		0	
+storufs	0		0	
+storvsc	0		0	
+svsvc	3		1	raw
+swenum	3		0	
+swprv	3		0	
+Synth3dVsc	3		0	
+SysMain	2		0	
+SystemEventsBroker	2		0	
+TabletInputService	3		0	
+TapiSrv	3		0	
+Tcpip	0		0	
+Tcpip6	3		0	
+tcpipreg	2		1	raw
+tdx	1		0	
+Telemetry	0		1	raw
+terminpt	3		0	
+TermService	3		1	raw
+TextInputManagementService	2		0	
+Themes	2		1	
+ThermalFilter	3		0	
+TieringEngineService	3		0	
+TimeBrokerSvc	3		0	
+TokenBroker	3		0	
+TPM	3		0	
+TrkWks	2		0	
+TroubleshootingSvc	3		1	raw
+TrustedInstaller	3	26300:2	0	
+TsUsbFlt	3		0	
+TsUsbGD	3		0	
+tsusbhub	3		0	
+tunnel	3		0	
+tzautoupdate	4		0	
+UASPStor	3		0	
+UcmCx0101	3		0	
+UcmTcpciCx0101	3		0	
+UcmUcsi	3		0	
+UcmUcsiAcpiClient	3		0	
+UcmUcsiCx0101	3		0	
+UCPD	2		1	raw
+Ucx01000	3		0	
+UdeCx	3		0	
+udfs	4		0	
+UdkUserSvc	3		0	
+UEFI	3		0	
+UevAgentDriver	4		0	
+UevAgentService	4		0	
+Ufx01000	3		0	
+UfxChipidea	3		0	
+ufxsynopsys	3		0	
+uiomap	1		0	
+umbus	3		0	
+UmPass	3		0	
+UmRdpService	3		1	raw
+UnionFS	2		0	
+UnistoreSvc	3		0	
+upnphost	3		0	
+UrsChipidea	3		0	
+UrsCx01000	3		0	
+UrsSynopsys	3		0	
+Usb4DeviceRouter	3		0	
+Usb4HostRouter	3		0	
+usbaudio	3		0	
+usbaudio2	3		0	
+usbccgp	3		0	
+usbcir	3		0	
+usbehci	3		0	
+usbhub	3		0	
+USBHUB3	3		0	
+usbohci	3		0	
+usb-platformdetection	3		0	
+usbprint	3		1	raw
+usbser	3		1	
+USBSTOR	3		0	
+usbuhci	3		0	
+USBXHCI	3		0	
+UserDataSvc	3		0	
+UserManager	2		0	
+UsoSvc	2		1		*
+VacSvc	3		0	
+VaultSvc	3		0	
+vdrvroot	0		0	
+vds	3		0	
+VerifierExt	4	22631:3,26200:3,26300:3	0	
+VGAuthService	2		0	
+vhdmp	3		0	
+vhf	3		0	
+Vid	1		1	raw
+VirtualRender	3		0	
+vm3dmp	3		0	
+vm3dmp_loader	3		0	
+vm3dmp-debug	3		0	
+vm3dmp-stats	3		0	
+VM3DService	2		0	
+vmbus	0		0	
+VMBusHID	3		0	
+vmci	0		0	
+vmgid	3		1	raw
+vmhgfs	3		0	
+vmicguestinterface	3		0	
+vmicheartbeat	3		0	
+vmickvpexchange	3		0	
+vmicrdv	3		0	
+vmicshutdown	3		0	
+vmictimesync	3		0	
+vmicvmsession	3		0	
+vmicvss	3		0	
+VMMemCtl	2		0	
+vmmouse	3		0	
+vmrawdsk	1		0	
+VMTools	2		0	
+vmusbmouse	3		0	
+vmvss	3		0	
+volmgr	0		0	
+volmgrx	0		0	
+volsnap	0		0	
+volume	0		0	
+vpci	0		1	raw
+vsmraid	0		0	
+vsock	0		0	
+VSS	3		0	
+VSTXRAID	0		0	
+vwifibus	3		0	
+vwififlt	1		1	
+W32Time	3	22631:2,26200:2	0	
+WaaSMedicSvc	3		1	
+WacomPen	3		0	
+WalletService	3		0	
+wanarp	3	26200:2,26300:2	0	
+wanarpv6	3		0	
+WarpJITSvc	3		0	
+wbengine	3		0	
+WbioSrvc	3		0	
+wcifs	2		0	
+Wcmsvc	2		0	
+wcncsvc	3		0	
+wcnfs	3		0	
+WdAiNisDrv	4		0	
+WdBoot	0		1	defender
+Wdf01000	0		0	
+WdFilter	0		1	defender
+WdiServiceHost	3		1	raw
+WdiSystemHost	3		1	raw
+wdiwifi	3		0	
+WdmCompanionFilter	3		0	
+WdNisDrv	3		1	defender
+WdNisSvc	3		1	defender
+WebClient	3		0	
+webthreatdefsvc	3		1	defender
+webthreatdefusersvc	2		1	defender
+Wecsvc	3		0	
+WEPHOSTSVC	3		0	
+wercplsupport	3		1	raw
+WerSvc	3		0	
+WFDSConMgrSvc	3		0	
+WFPLWFS	0		0	
+whesvc	2		0	
+WiaRpc	3		0	
+WifiCx	3		0	
+WIMMount	3		0	
+WinAccelCx0101	3		0	
+WinDefend	2		1	defender
+WindowsTrustedRT	0		0	
+WindowsTrustedRTProxy	0		0	
+WinHttpAutoProxySvc	3		0	
+wini3ctarget	3		0	
+WinMad	3		0	
+Winmgmt	2		0	
+WinNat	3		0	
+WinQuic	3		0	
+WinRM	3		0	
+WINUSB	3		0	
+WinVerbs	3		0	
+wisvc	3		1	raw
+WlanSvc	3		1	
+wlidsvc	3		0	
+wlpasvc	3		0	
+WManSvc	3		0	
+WmiAcpi	3		0	
+wmiApSrv	3		0	
+WMPNetworkSvc	3		0	
+Wof	0		0	
+workfolderssvc	3		0	
+WpcMonSvc	3		0	
+WPDBusEnum	3		0	
+WpdUpFltr	3		0	
+WpnService	2		1	
+WpnUserService	2		1	
+ws2ifsl	1		0	
+WSAIFabricSvc	2		1	raw
+wscsvc	2		1	defender	*
+WSearch	2		1		*
+WslInstaller	2		0	
+WSLService	2		1	raw
+wtd	2		1	defender
+wuauserv	3		1	
+WudfPf	3		0	
+WUDFRd	3		0	
+wuqisvc	3		0	
+WwanSvc	3		0	
+XblAuthManager	3		0	
+XblGameSave	3		0	
+xboxgip	3		0	
+XboxGipSvc	3		0	
+XboxNetApiSvc	3		0	
+xinputhid	3		0	
+ZTDNS	3		0	
+ZTHELPER	3		0	
+
+

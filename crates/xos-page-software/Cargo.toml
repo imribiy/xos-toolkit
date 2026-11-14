@@ -1,0 +1,16 @@
+[package]
+name = "xos-page-software"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+xos-core.workspace = true
+xos-sys.workspace = true
+anyhow.workspace = true
+chrono.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+windows.workspace = true
+winreg.workspace = true

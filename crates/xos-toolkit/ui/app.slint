@@ -1,0 +1,646 @@
+import { ScrollView, LineEdit, Palette, ListView } from "std-widgets.slint";
+import { Theme } from "theme.slint";
+import { Bridge, Modal, PairD, CardD, RowD, ControlD, CellRowD, ColumnD, RowButtonD, BadgeD, XButton, PairView } from "widgets.slint";
+
+export { Theme, Bridge, PairD, CardD, RowD, ControlD, CellRowD, ColumnD, RowButtonD, BadgeD }
+
+export struct NavItemD { id: string, label: string, group: string, active: bool }
+export struct PickItemD { id: string, label: string, tone: int, selected: bool }
+
+component NavButton inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    in property <string> aid;
+    callback clicked;
+    accessible-role: tab;
+    accessible-label: root.text;
+    accessible-id: root.aid;
+    accessible-item-selectable: true;
+    accessible-item-selected: root.active;
+    accessible-action-default => { if (!Modal.open) { root.clicked(); } }
+    accessible-delegate-focus: 0;
+    height: 34px;
+    border-radius: 7px;
+    border-color: Theme.accent-blue;
+    border-width: fs.has-focus ? 1px : 0px;
+    background: active ? Theme.sidebar-active : (ta.has-hover ? Theme.hover-overlay : transparent);
+    fs := FocusScope {
+        enabled: !Modal.open;
+        key-pressed(e) => {
+            if (e.repeat) { return accept; }
+            if (e.text == " " || e.text == Key.Return) { root.clicked(); return accept; }
+            return reject;
+        }
+    }
+    HorizontalLayout {
+        padding-left: 12px;
+        padding-right: 12px;
+        Text {
+            accessible-role: none;
+            text: root.text;
+            font-size: 12.5px;
+            font-weight: root.active ? 600 : 400;
+            color: root.active ? Theme.text-primary : Theme.text-secondary;
+            vertical-alignment: center;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
+component ModalFrame inherits Rectangle {
+    in property <length> card-width: 420px;
+    background: #00000066;
+    TouchArea { }
+    frame := Rectangle {
+        width: root.card-width;
+        height: min(inner.preferred-height, root.height - 40px);
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
+        background: Theme.bg-card;
+        border-color: Theme.border-strong;
+        border-width: 1px;
+        border-radius: 12px;
+        drop-shadow-blur: 24px;
+        drop-shadow-offset-y: 4px;
+        drop-shadow-color: Theme.dark ? #00000066 : #00000024;
+        inner := VerticalLayout {
+            padding: 20px;
+            spacing: 12px;
+            @children
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    title: "XOS Toolkit";
+    icon: @image-url("../assets/XOS.png");
+    preferred-width: 1240px;
+    preferred-height: 780px;
+    min-width: 920px;
+    min-height: 640px;
+    background: Theme.bg-dark;
+    default-font-family: Theme.font;
+
+    in property <string> build-text;
+    in property <bool> xos-detected;
+    in property <string> win-text;
+    in property <string> user-name;
+    in property <string> user-initial;
+    in property <image> avatar;
+    in property <bool> has-avatar;
+    in property <[NavItemD]> nav;
+    in property <string> status-text: "Ready";
+    in property <bool> banner-visible;
+    in property <string> banner-text;
+    in property <string> page-title;
+    in property <string> page-subtitle;
+    in property <length> page-max-width: 1080px;
+    in property <[PairD]> pairs;
+    in property <bool> overlay-visible;
+    in property <string> overlay-text;
+    in-out property <string> search-text;
+    in-out property <length> scroll-y;
+
+    in property <bool> dialog-visible;
+    in property <string> dialog-title;
+    in property <string> dialog-message;
+    in property <int> dialog-icon;
+    in property <[string]> dialog-buttons;
+
+    in property <bool> input-visible;
+    in property <string> input-title;
+    in property <string> input-prompt;
+    in property <string> input-ok;
+    in property <int> input-max;
+    in-out property <string> input-text;
+
+    in property <bool> pick-visible;
+    in property <string> pick-title;
+    in property <string> pick-legend;
+    in property <string> pick-hint;
+    in property <string> pick-ok;
+    in property <[PickItemD]> pick-items;
+
+    callback navigate(string);
+    callback search-changed(string);
+    callback set-dark(bool);
+    callback banner-dismiss();
+    callback banner-reboot();
+    callback dialog-choose(int);
+    callback input-done(bool, string);
+    callback pick-filter(string);
+    callback pick-toggle(int);
+    callback pick-done(bool);
+
+    property <bool> modal-open: root.dialog-visible || root.input-visible || root.pick-visible || root.overlay-visible;
+    changed modal-open => { Modal.open = root.modal-open; }
+
+    property <bool> dark-mirror: Theme.dark;
+    changed dark-mirror => { Palette.color-scheme = Theme.dark ? ColorScheme.dark : ColorScheme.light; }
+    init => {
+        Palette.color-scheme = Theme.dark ? ColorScheme.dark : ColorScheme.light;
+        Modal.open = root.modal-open;
+    }
+
+    HorizontalLayout {
+        Rectangle {
+            width: 240px;
+            background: Theme.bg-medium;
+            Rectangle {
+                x: parent.width - 1px;
+                width: 1px;
+                background: Theme.border-subtle;
+            }
+            VerticalLayout {
+                padding: 12px;
+                spacing: 10px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    padding-top: 4px;
+                    padding-bottom: 4px;
+                    Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        border-radius: 6px;
+                        background: Theme.accent-blue;
+                        Text {
+                            text: "X";
+                            color: Theme.on-accent;
+                            font-weight: 700;
+                            font-size: 13px;
+                        }
+                    }
+                    VerticalLayout {
+                        Text {
+                            text: "XOS Toolkit";
+                            font-size: 12.5px;
+                            font-weight: 600;
+                            color: Theme.text-primary;
+                        }
+                        Text {
+                            text: root.build-text;
+                            font-size: 10.5px;
+                            color: Theme.text-muted;
+                        }
+                    }
+                }
+                LineEdit {
+                    accessible-id: "nav/search";
+                    accessible-label: "Search modules";
+                    text <=> root.search-text;
+                    placeholder-text: "Search modules...";
+                    edited(t) => { root.search-changed(t); }
+                }
+                ListView {
+                    accessible-role: tab-list;
+                    accessible-label: "Pages";
+                    accessible-id: "nav";
+                    vertical-stretch: 1;
+                    for item in root.nav: VerticalLayout {
+                        padding-bottom: 2px;
+                        if item.group != "": Text {
+                            text: item.group;
+                            font-size: 11px;
+                            font-weight: 600;
+                            color: Theme.text-muted;
+                            height: 28px;
+                            vertical-alignment: bottom;
+                        }
+                        NavButton {
+                            text: item.label;
+                            active: item.active;
+                            aid: "nav/" + item.id;
+                            clicked => { root.navigate(item.id); }
+                        }
+                    }
+                }
+                Rectangle {
+                    height: 1px;
+                    background: Theme.border-subtle;
+                }
+                HorizontalLayout {
+                    spacing: 10px;
+                    Rectangle {
+                        width: 34px;
+                        height: 34px;
+                        border-radius: 8px;
+                        background: Theme.bg-elevated;
+                        clip: true;
+                        if !root.has-avatar: Text {
+                            text: root.user-initial;
+                            color: Theme.text-primary;
+                            font-weight: 600;
+                        }
+                        if root.has-avatar: Image {
+                            width: parent.width;
+                            height: parent.height;
+                            source: root.avatar;
+                            image-fit: cover;
+                        }
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        horizontal-stretch: 1;
+                        Text {
+                            text: root.user-name;
+                            font-size: 12px;
+                            font-weight: 600;
+                            color: Theme.text-primary;
+                            overflow: elide;
+                        }
+                        Text {
+                            text: "Administrator";
+                            font-size: 11px;
+                            color: Theme.text-muted;
+                        }
+                    }
+                    Rectangle {
+                        width: 28px;
+                        accessible-role: button;
+                        accessible-label: "Light theme";
+                        accessible-id: "theme/light";
+                        accessible-action-default => { if (!Modal.open) { root.set-dark(false); } }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.set-dark(false); }
+                        }
+                        Text {
+                            accessible-role: none;
+                            text: "\u{E706}";
+                            font-family: "Segoe MDL2 Assets";
+                            font-size: 14px;
+                            color: Theme.dark ? Theme.text-muted : Theme.text-primary;
+                        }
+                    }
+                    Rectangle {
+                        width: 28px;
+                        accessible-role: button;
+                        accessible-label: "Dark theme";
+                        accessible-id: "theme/dark";
+                        accessible-action-default => { if (!Modal.open) { root.set-dark(true); } }
+                        TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.set-dark(true); }
+                        }
+                        Text {
+                            accessible-role: none;
+                            text: "\u{E708}";
+                            font-family: "Segoe MDL2 Assets";
+                            font-size: 14px;
+                            color: Theme.dark ? Theme.text-primary : Theme.text-muted;
+                        }
+                    }
+                }
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            Rectangle {
+                height: 40px;
+                background: Theme.bg-dark;
+                Rectangle {
+                    y: parent.height - 1px;
+                    height: 1px;
+                    background: Theme.border-subtle;
+                }
+                HorizontalLayout {
+                    padding-left: 28px;
+                    padding-right: 20px;
+                    spacing: 8px;
+                    alignment: end;
+                    Rectangle {
+                        width: 8px;
+                        height: 8px;
+                        y: (parent.height - 8px) / 2;
+                        border-radius: 4px;
+                        background: root.xos-detected ? Theme.accent-green : Theme.accent-orange;
+                    }
+                    Text {
+                        text: root.xos-detected ? "XOS detected" : "Standard Windows";
+                        font-size: 11.5px;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                    }
+                    Text {
+                        text: "  " + root.win-text;
+                        font-size: 11.5px;
+                        color: Theme.text-muted;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            if root.banner-visible: Rectangle {
+                background: Theme.warning-surface;
+                border-color: Theme.warning-border;
+                border-width: 1px;
+                HorizontalLayout {
+                    padding: 10px;
+                    padding-left: 28px;
+                    spacing: 8px;
+                    Text {
+                        accessible-id: "banner/text";
+                        text: root.banner-text;
+                        wrap: word-wrap;
+                        font-size: 12px;
+                        color: Theme.accent-orange;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                    XButton {
+                        text: "Dismiss";
+                        kind: 0;
+                        aid: "banner/dismiss";
+                        clicked => { root.banner-dismiss(); }
+                    }
+                    XButton {
+                        text: "Reboot now";
+                        kind: 3;
+                        aid: "banner/reboot";
+                        clicked => { root.banner-reboot(); }
+                    }
+                }
+            }
+            Rectangle {
+                vertical-stretch: 1;
+                sv := ScrollView {
+                    width: 100%;
+                    height: 100%;
+                    content-width: self.visible-width;
+                    content-height: content.preferred-height;
+                    content-y <=> root.scroll-y;
+                    content := HorizontalLayout {
+                        width: sv.visible-width;
+                        padding-left: 28px;
+                        padding-right: 28px;
+                        padding-top: 24px;
+                        padding-bottom: 24px;
+                        Rectangle { horizontal-stretch: 1; }
+                        VerticalLayout {
+                            max-width: root.page-max-width;
+                            horizontal-stretch: 1000;
+                            Text {
+                                accessible-id: "page/title";
+                                text: root.page-title;
+                                font-size: 25px;
+                                font-weight: 600;
+                                color: Theme.text-primary;
+                            }
+                            Rectangle { height: 4px; }
+                            if root.page-subtitle != "": Text {
+                                text: root.page-subtitle;
+                                font-size: 13px;
+                                color: Theme.text-secondary;
+                                wrap: word-wrap;
+                            }
+                            Rectangle { height: 24px; }
+                            for p in root.pairs: PairView {
+                                pair: p;
+                                wide: sv.visible-width - 56px >= 760px;
+                                avail: min(root.page-max-width, sv.visible-width - 56px);
+                                scroll-me(y) => { sv.content-y = -max(0px, y - 12px); }
+                            }
+                        }
+                        Rectangle { horizontal-stretch: 1; }
+                    }
+                }
+                if root.overlay-visible: Rectangle {
+                    background: Theme.overlay;
+                    TouchArea { }
+                    Text {
+                        accessible-id: "busy";
+                        text: root.overlay-text;
+                        color: Theme.overlay-text;
+                        font-size: 14px;
+                        wrap: word-wrap;
+                        width: 70%;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+            Rectangle {
+                height: 32px;
+                background: Theme.bg-medium;
+                Rectangle {
+                    height: 1px;
+                    y: 0;
+                    background: Theme.border-subtle;
+                }
+                HorizontalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    Text {
+                        accessible-id: "status";
+                        text: root.status-text;
+                        font-size: 11.5px;
+                        color: Theme.text-secondary;
+                        vertical-alignment: center;
+                        overflow: elide;
+                        horizontal-stretch: 1;
+                    }
+                    Text {
+                        text: "Administrator session";
+                        font-size: 11.5px;
+                        color: Theme.accent-green;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+        }
+    }
+
+    if root.dialog-visible: ModalFrame {
+        card-width: 420px;
+        accessible-role: groupbox;
+        accessible-label: root.dialog-title;
+        accessible-id: "dialog";
+        FocusScope {
+            init => { self.focus(); }
+            key-pressed(e) => {
+                if (e.text == Key.Escape) { root.dialog-choose(-1); return accept; }
+                if (e.text == Key.Return) { root.dialog-choose(root.dialog-buttons.length - 1); return accept; }
+                return reject;
+            }
+            VerticalLayout {
+                spacing: 12px;
+                HorizontalLayout {
+                    spacing: 10px;
+                    Text {
+                        accessible-role: none;
+                        text: root.dialog-icon == 2 ? "⛔" : root.dialog-icon == 1 ? "⚠" : root.dialog-icon == 3 ? "?" : "ℹ";
+                        font-size: 18px;
+                        font-weight: 700;
+                        color: root.dialog-icon == 2 ? Theme.accent-red : root.dialog-icon == 1 ? Theme.accent-orange : Theme.accent-blue;
+                    }
+                    Text {
+                        text: root.dialog-title;
+                        font-size: 15px;
+                        font-weight: 600;
+                        color: Theme.text-primary;
+                        vertical-alignment: center;
+                        horizontal-stretch: 1;
+                    }
+                }
+                ScrollView {
+                    min-height: min(msg.preferred-height, 120px);
+                    preferred-height: msg.preferred-height;
+                    max-height: max(120px, root.height - 220px);
+                    content-height: msg.preferred-height;
+                    content-width: self.visible-width;
+                    msg := Text {
+                        accessible-id: "dialog/message";
+                        width: parent.visible-width;
+                        text: root.dialog-message;
+                        wrap: word-wrap;
+                        font-size: 12.5px;
+                        color: Theme.text-secondary;
+                    }
+                }
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+                    for b[i] in root.dialog-buttons: XButton {
+                        text: b;
+                        kind: i == root.dialog-buttons.length - 1 ? 0 : 4;
+                        min-width: 84px;
+                        aid: "dialog/button" + i;
+                        in-modal: true;
+                        clicked => { root.dialog-choose(i); }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.input-visible: ModalFrame {
+        card-width: 340px;
+        accessible-role: groupbox;
+        accessible-label: root.input-title;
+        accessible-id: "input";
+        Text {
+            text: root.input-title;
+            font-size: 15px;
+            font-weight: 600;
+            color: Theme.text-primary;
+        }
+        Text {
+            text: root.input-prompt;
+            font-size: 12px;
+            color: Theme.text-primary;
+            wrap: word-wrap;
+        }
+        ile := LineEdit {
+            accessible-id: "input/text";
+            accessible-label: root.input-prompt;
+            text <=> root.input-text;
+            init => { self.focus(); }
+            accepted(t) => { root.input-done(true, t); }
+        }
+        HorizontalLayout {
+            alignment: end;
+            spacing: 8px;
+            XButton {
+                text: root.input-ok;
+                kind: 1;
+                aid: "input/ok";
+                in-modal: true;
+                clicked => { root.input-done(true, root.input-text); }
+            }
+            XButton {
+                text: "Cancel";
+                kind: 2;
+                aid: "input/cancel";
+                in-modal: true;
+                clicked => { root.input-done(false, ""); }
+            }
+        }
+    }
+
+    if root.pick-visible: ModalFrame {
+        card-width: 440px;
+        accessible-role: groupbox;
+        accessible-label: root.pick-title;
+        accessible-id: "pick";
+        Text {
+            text: root.pick-title;
+            font-size: 15px;
+            font-weight: 600;
+            color: Theme.text-primary;
+        }
+        if root.pick-legend != "": Text {
+            text: root.pick-legend;
+            font-size: 11px;
+            color: Theme.text-muted;
+            wrap: word-wrap;
+        }
+        LineEdit {
+            accessible-id: "pick/filter";
+            accessible-label: root.pick-hint;
+            placeholder-text: root.pick-hint;
+            edited(t) => { root.pick-filter(t); }
+        }
+        Rectangle {
+            height: min(420px, root.height - 260px);
+            border-color: Theme.border-subtle;
+            border-width: 1px;
+            border-radius: 8px;
+            ListView {
+                accessible-role: list;
+                accessible-id: "pick/list";
+                accessible-item-count: root.pick-items.length;
+                for it[i] in root.pick-items: Rectangle {
+                    height: 28px;
+                    background: it.selected ? Theme.sidebar-active : (pta.has-hover ? Theme.hover-overlay : transparent);
+                    accessible-role: list-item;
+                    accessible-label: it.label;
+                    accessible-id: "pick/item/" + it.id;
+                    accessible-item-index: i;
+                    accessible-item-selectable: true;
+                    accessible-item-selected: it.selected;
+                    accessible-action-default => { root.pick-toggle(i); }
+                    accessible-delegate-focus: 0;
+                    border-color: Theme.accent-blue;
+                    border-width: pfs.has-focus ? 1px : 0px;
+                    pfs := FocusScope {
+                        key-pressed(e) => {
+                            if (e.repeat) { return accept; }
+                            if (e.text == " " || e.text == Key.Return) { root.pick-toggle(i); return accept; }
+                            return reject;
+                        }
+                    }
+                    pta := TouchArea { clicked => { root.pick-toggle(i); } }
+                    HorizontalLayout {
+                        padding-left: 10px;
+                        Text {
+                            accessible-role: none;
+                            text: (it.selected ? "✓  " : "    ") + it.label;
+                            font-size: 12px;
+                            color: Theme.row-tone(it.tone);
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            alignment: end;
+            spacing: 8px;
+            XButton {
+                text: root.pick-ok;
+                kind: 1;
+                aid: "pick/ok";
+                in-modal: true;
+                clicked => { root.pick-done(true); }
+            }
+            XButton {
+                text: "Cancel";
+                kind: 2;
+                aid: "pick/cancel";
+                in-modal: true;
+                clicked => { root.pick-done(false); }
+            }
+        }
+    }
+}
