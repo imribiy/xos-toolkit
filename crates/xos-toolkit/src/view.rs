@@ -35,6 +35,10 @@ fn sync_model<T: Clone + PartialEq + 'static>(model: &VecModel<T>, items: Vec<T>
     }
 }
 
+fn sort_base(title: &str) -> &str {
+    title.trim_end_matches(['\u{25B2}', '\u{25BC}']).trim_end()
+}
+
 fn is_stretchy(c: &m::Control) -> bool {
     use m::Kind::*;
     match c.kind {
@@ -65,6 +69,31 @@ fn a11y_label(text: &str, id: &str) -> String {
     match c.next() {
         Some(f) => f.to_uppercase().chain(c).collect(),
         None => String::new(),
+    }
+}
+
+#[cfg(test)]
+mod column_width_tests {
+    use super::CtlCache;
+    use crate::ColumnD;
+    use slint::Model;
+    use xos_core::ui as m;
+
+    fn table(titles: &[&str], widths: &[f32]) -> m::Control {
+        let cols = titles.iter().zip(widths).map(|(t, w)| m::Column { title: t.to_string(), width: *w }).collect();
+        m::Control::table("t", m::Table::new(cols, Vec::new()))
+    }
+
+    #[test]
+    fn a_dragged_width_survives_a_sort_but_not_a_new_column_set() {
+        let mut cache = CtlCache::default();
+        cache.update(&table(&["Name", "Path"], &[0.0, 120.0]));
+        cache.columns.set_row_data(0, ColumnD { title: "Name".into(), width: 200.0 });
+        cache.update(&table(&["Name  \u{25B2}", "Path"], &[0.0, 120.0]));
+        assert_eq!(cache.columns.row_data(0).unwrap().width, 200.0);
+        assert_eq!(cache.columns.row_data(0).unwrap().title, "Name  \u{25B2}");
+        cache.update(&table(&["Task", "Path"], &[0.0, 120.0]));
+        assert_eq!(cache.columns.row_data(0).unwrap().width, 0.0);
     }
 }
 
@@ -118,7 +147,22 @@ impl CtlCache {
         let empty = m::Table::default();
         let t = c.table.as_ref().unwrap_or(&empty);
         if self.columns_src != t.columns {
-            sync_model(&self.columns, t.columns.iter().map(|col| ColumnD { title: ss(&col.title), width: col.width }).collect());
+            let same_set = self.columns_src.len() == t.columns.len();
+            let items = t
+                .columns
+                .iter()
+                .enumerate()
+                .map(|(i, col)| {
+                    let kept = self
+                        .columns_src
+                        .get(i)
+                        .filter(|o| same_set && o.width == col.width && sort_base(&o.title) == sort_base(&col.title))
+                        .and_then(|_| self.columns.row_data(i))
+                        .map_or(col.width, |d| d.width);
+                    ColumnD { title: ss(&col.title), width: kept }
+                })
+                .collect();
+            sync_model(&self.columns, items);
             self.columns_src = t.columns.clone();
         }
         let n = t.rows.len();

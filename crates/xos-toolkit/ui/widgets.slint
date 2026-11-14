@@ -164,71 +164,31 @@ export component BadgeView inherits Rectangle {
     }
 }
 
-// A table cell whose text, when cut off, can be dragged sideways to read the rest.
-// A press without a drag still selects (click) or activates (double-click) the row.
-component DragCell inherits Rectangle {
-    in property <string> text;
-    in property <color> text-color;
-    in property <bool> click-enabled;
-    callback clicked();
-    callback double-clicked();
-    property <length> full-width: measure.preferred-width;
-    property <length> min-x: min(0px, root.width - root.full-width);
-    property <length> offset: 0px;
-    property <length> start-offset: 0px;
-    property <bool> dragging: false;
-    property <length> shown-x: max(root.min-x, min(0px, root.offset));
-    clip: true;
-    preferred-width: root.full-width;
-    changed text => { root.offset = 0px; }
-    changed width => { root.offset = root.shown-x; }
-    // Measures the uncut text; the shown Text cannot, since its own overflow mode depends on the result.
-    measure := Text {
-        visible: false;
-        text: root.text;
-        font-size: 12px;
-        accessible-role: none;
-    }
-    t := Text {
-        x: root.shown-x;
-        width: root.shown-x < 0px ? max(root.width, root.full-width) : root.width;
-        height: root.height;
-        text: root.text;
-        font-size: 12px;
-        color: root.text-color;
-        vertical-alignment: center;
-        overflow: root.shown-x < 0px ? clip : elide;
-        accessible-role: none;
-    }
-    ta := TouchArea {
-        mouse-cursor: root.dragging ? grabbing : (root.min-x < 0px ? grab : default);
-        pointer-event(e) => {
-            if (e.button == PointerEventButton.left && e.kind == PointerEventKind.down) {
-                root.start-offset = root.shown-x;
-                root.dragging = false;
-            }
-        }
-        moved => {
-            if (self.pressed && root.min-x < 0px) {
-                if (abs(self.mouse-x - self.pressed-x) > 4px) { root.dragging = true; }
-                if (root.dragging) {
-                    root.offset = max(root.min-x, min(0px, root.start-offset + self.mouse-x - self.pressed-x));
-                }
-            }
-        }
-        clicked => { if (!root.dragging && root.click-enabled) { root.clicked(); } }
-        double-clicked => { if (!root.dragging && root.click-enabled) { root.double-clicked(); } }
-    }
-}
-
 component TableView inherits Rectangle {
     in property <ControlD> c;
     in property <string> card-id;
+    in-out property <[ColumnD]> cols: c.columns;
+    function resize(j: int, wj: length, d: length) {
+        let wk = root.cols[j + 1].width;
+        let free = max(0px, hl.width - hl.min-width);
+        if (root.cols[j].width > 0 && wk > 0) {
+            let m = max(40px - wj, min(wk - 40px, d));
+            root.cols[j] = { title: root.cols[j].title, width: wj + m };
+            root.cols[j + 1] = { title: root.cols[j + 1].title, width: wk - m };
+        } else if (root.cols[j].width > 0) {
+            root.cols[j] = { title: root.cols[j].title, width: wj + max(40px - wj, min(free, d)) };
+        } else if (wk > 0) {
+            root.cols[j + 1] = { title: root.cols[j + 1].title, width: wk - max(0px - free, min(wk - 40px, d)) };
+        } else {
+            root.cols[j] = { title: root.cols[j].title, width: wj + max(40px - wj, min(free + 40px - wj, d)) };
+        }
+    }
     border-color: Theme.border-subtle;
     border-width: 1px;
     border-radius: 8px;
     min-height: c.table-height;
     max-height: c.table-height;
+    min-width: 120px;
     clip: true;
     accessible-role: list;
     accessible-id: card-id + "/" + c.id;
@@ -238,12 +198,18 @@ component TableView inherits Rectangle {
         Rectangle {
             height: 30px;
             background: Theme.bg-elevated;
-            HorizontalLayout {
+            hl := HorizontalLayout {
                 padding-left: 8px;
                 padding-right: 8px;
                 spacing: 6px;
                 if c.checkable: Rectangle { width: 26px; }
-                for col[j] in c.columns: Rectangle {
+                for col[j] in c.columns: hc := Rectangle {
+                    property <length> overflow: hl.min-width - hl.width;
+                    changed overflow => {
+                        if (self.overflow > 0 && col.width > 40px) {
+                            root.cols[j] = { title: col.title, width: max(40px, col.width - self.overflow) };
+                        }
+                    }
                     min-width: col.width > 0 ? col.width : 40px;
                     max-width: col.width > 0 ? col.width : 100000px;
                     horizontal-stretch: col.width > 0 ? 0 : 1;
@@ -266,6 +232,24 @@ component TableView inherits Rectangle {
                         enabled: c.sortable;
                         mouse-cursor: c.sortable ? pointer : default;
                         clicked => { Bridge.header-click(card-id, c.id, j); }
+                    }
+                    if j < c.columns.length - 1: Rectangle {
+                        x: parent.width - 2px;
+                        width: 10px;
+                        Rectangle {
+                            x: 4px;
+                            width: 1px;
+                            height: 14px;
+                            background: sa.has-hover || sa.pressed ? Theme.accent-blue : Theme.border-subtle;
+                        }
+                        sa := TouchArea {
+                            mouse-cursor: col-resize;
+                            moved => {
+                                if (self.pressed) {
+                                    root.resize(j, hc.width, self.mouse-x - self.pressed-x);
+                                }
+                            }
+                        }
                     }
                 }
                 if c.has-buttons: Rectangle { width: c.buttons-width; }
@@ -308,51 +292,50 @@ component TableView inherits Rectangle {
                     border-color: Theme.accent-blue;
                     border-width: rfs.has-focus ? 1px : 0px;
                 }
+                rta := TouchArea {
+                    enabled: c.selectable && row.enabled;
+                    clicked => { Bridge.row-select(card-id, c.id, i); }
+                    double-clicked => { Bridge.row-activate(card-id, c.id, i); }
+                }
                 Rectangle {
                     y: parent.height - 1px;
                     height: 1px;
                     background: Theme.border-subtle;
                 }
-                // The cells sit inside the row's TouchArea so the row keeps its hover
-                // (background and tooltip) while the pointer is over a draggable cell.
-                rta := TouchArea {
-                    enabled: c.selectable && row.enabled;
-                    clicked => { Bridge.row-select(card-id, c.id, i); }
-                    double-clicked => { Bridge.row-activate(card-id, c.id, i); }
-                    HorizontalLayout {
-                        padding-left: 8px;
-                        padding-right: 8px;
+                HorizontalLayout {
+                    padding-left: 8px;
+                    padding-right: 8px;
+                    spacing: 6px;
+                    if c.checkable: CheckBox {
+                        accessible-label: row.label;
+                        accessible-id: card-id + "/" + c.id + "/row/" + row.id + "/check";
+                        width: 26px;
+                        checked: row.checked;
+                        enabled: row.enabled && c.enabled;
+                        toggled => { Bridge.row-check(card-id, c.id, i, self.checked); }
+                    }
+                    for cell[j] in row.cells: Text {
+                        accessible-role: none;
+                        min-width: c.columns[j].width > 0 ? c.columns[j].width : 40px;
+                        max-width: c.columns[j].width > 0 ? c.columns[j].width : 100000px;
+                        horizontal-stretch: c.columns[j].width > 0 ? 0 : 1;
+                        text: cell;
+                        font-size: 12px;
+                        color: row.enabled ? Theme.row-tone(row.tone) : Theme.text-muted;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                    if c.has-buttons: HorizontalLayout {
+                        width: c.buttons-width;
                         spacing: 6px;
-                        if c.checkable: CheckBox {
-                            accessible-label: row.label;
-                            accessible-id: card-id + "/" + c.id + "/row/" + row.id + "/check";
-                            width: 26px;
-                            checked: row.checked;
-                            enabled: row.enabled && c.enabled;
-                            toggled => { Bridge.row-check(card-id, c.id, i, self.checked); }
-                        }
-                        for cell[j] in row.cells: DragCell {
-                            min-width: c.columns[j].width > 0 ? c.columns[j].width : 40px;
-                            max-width: c.columns[j].width > 0 ? c.columns[j].width : 100000px;
-                            horizontal-stretch: c.columns[j].width > 0 ? 0 : 1;
-                            text: cell;
-                            text-color: row.enabled ? Theme.row-tone(row.tone) : Theme.text-muted;
-                            click-enabled: c.selectable && row.enabled;
-                            clicked => { Bridge.row-select(card-id, c.id, i); }
-                            double-clicked => { Bridge.row-activate(card-id, c.id, i); }
-                        }
-                        if c.has-buttons: HorizontalLayout {
-                            width: c.buttons-width;
-                            spacing: 6px;
-                            alignment: end;
-                            for b in row.buttons: XButton {
-                                text: b.text;
-                                kind: b.style;
-                                enabled: b.enabled && c.enabled;
-                                aid: card-id + "/" + c.id + "/row/" + row.id + "/" + b.id;
-                                label: b.label;
-                                clicked => { Bridge.row-button(card-id, c.id, i, b.id); }
-                            }
+                        alignment: end;
+                        for b in row.buttons: XButton {
+                            text: b.text;
+                            kind: b.style;
+                            enabled: b.enabled && c.enabled;
+                            aid: card-id + "/" + c.id + "/row/" + row.id + "/" + b.id;
+                            label: b.label;
+                            clicked => { Bridge.row-button(card-id, c.id, i, b.id); }
                         }
                     }
                 }
