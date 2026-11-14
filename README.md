@@ -6,7 +6,7 @@ The Toolkit is built for [XOS](https://github.com/imribiy/xos-playbook). It runs
 
 ## Install
 
-Every [XOS playbook release](https://github.com/imribiy/xos-playbook/releases) installs the Toolkit. Support is on the [XOS Discord](https://discord.gg/XTYEjZNPgX). This repository is source only.
+Every [XOS playbook release](https://github.com/imribiy/xos-playbook/releases) installs the Toolkit. Report problems in [Issues](https://github.com/imribiy/xos-toolkit/issues); search the existing ones first. This repository is source only.
 
 The installer upgrades an earlier XOS Toolkit in place, including the old C# versions. The app asks for elevation on launch. XOS-CpuService is installed next to the Toolkit; turn it on from the CPU Affinity page.
 

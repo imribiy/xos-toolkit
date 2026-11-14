@@ -20,8 +20,7 @@ use xos_core::host::{Host, Page};
 use xos_core::ui::*;
 use xos_core::{detect, log};
 
-const DISCORD_URL: &str = "https://discord.gg/XTYEjZNPgX";
-const PRO_SERVICE_URL: &str = "https://discord.gg/9pUqY9kszX";
+const GITHUB_URL: &str = "https://github.com/imribiy/XOS";
 const SLINT_URL: &str = "https://slint.dev";
 
 #[derive(Clone, Debug, PartialEq)]
@@ -497,21 +496,13 @@ impl Page for AboutPage {
             .card(overview.full_width())
             .card(
                 Card::new(
-                    "community",
-                    "Community & Support",
-                    "Get help, report issues, share feedback, and follow XOS development.",
+                    "github",
+                    "XOS on GitHub",
+                    "Releases, source code, and bug reports.",
                 )
                 .not_searchable()
-                .actions(vec![Control::button("discord", "Join Discord", BtnStyle::Enable)]),
-            )
-            .card(
-                Card::new(
-                    "pro",
-                    "Professional Optimization",
-                    "Request a personal optimization session focused on latency and system performance.",
-                )
-                .not_searchable()
-                .actions(vec![Control::button("proservice", "View Service", BtnStyle::Action)]),
+                .full_width()
+                .actions(vec![Control::button("github", "Open GitHub", BtnStyle::Enable)]),
             )
             .card(
                 Card::new("slint", "", "").not_searchable().full_width().controls(vec![
@@ -530,8 +521,7 @@ impl Page for AboutPage {
             return;
         }
         match event.control.as_str() {
-            "discord" => open_link(host, DISCORD_URL),
-            "proservice" => open_link(host, PRO_SERVICE_URL),
+            "github" => open_link(host, GITHUB_URL),
             "slint.link" => open_link(host, SLINT_URL),
             _ => {}
         }
@@ -600,7 +590,7 @@ mod tests {
             .flat_map(|r| r.controls.iter())
             .map(|c| c.id.as_str())
             .collect();
-        for id in ["discord", "proservice", "slint.link"] {
+        for id in ["github", "slint.link"] {
             assert!(ids.contains(&id));
         }
         let texts: Vec<&str> = model
