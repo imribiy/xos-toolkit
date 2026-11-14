@@ -28,6 +28,21 @@ pub fn system_prefers_dark() -> bool {
         .unwrap_or(true)
 }
 
+const DIALOGS_KEY: &str = r"Software\XOSToolkit\Dialogs";
+
+pub fn dialog_muted(key: &str) -> bool {
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(DIALOGS_KEY)
+        .and_then(|k| k.get_value::<u32, _>(key))
+        .map(|v| v == 1)
+        .unwrap_or(false)
+}
+
+pub fn mute_dialog(key: &str) -> std::io::Result<()> {
+    let (k, _) = RegKey::predef(HKEY_CURRENT_USER).create_subkey(DIALOGS_KEY)?;
+    k.set_value(key, &1u32)
+}
+
 pub fn user_name() -> String {
     std::env::var("USERNAME").unwrap_or_default()
 }

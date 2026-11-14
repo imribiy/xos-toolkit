@@ -73,6 +73,15 @@ pub trait Host: Send + Sync {
     fn confirm(&self, message: &str, title: &str, icon: Icon) -> bool {
         self.dialog(message, title, Buttons::YesNo, icon) == DialogResult::Yes
     }
+    fn dialog_mutable(&self, _key: &str, message: &str, title: &str, buttons: Buttons, icon: Icon) -> DialogResult {
+        self.dialog(message, title, buttons, icon)
+    }
+    fn warn_once(&self, key: &str, message: &str, title: &str) {
+        self.dialog_mutable(key, message, title, Buttons::Ok, Icon::Warning);
+    }
+    fn confirm_once(&self, key: &str, message: &str, title: &str, icon: Icon) -> bool {
+        self.dialog_mutable(key, message, title, Buttons::YesNo, icon) == DialogResult::Yes
+    }
 }
 
 pub trait Page: Send + Sync {

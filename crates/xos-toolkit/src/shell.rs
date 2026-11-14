@@ -43,7 +43,7 @@ pub struct Shell {
     weak: slint::Weak<AppWindow>,
     state: Mutex<State>,
     dialog_lock: Mutex<()>,
-    dialog_tx: Mutex<Option<(mpsc::Sender<i32>, Buttons)>>,
+    dialog_tx: Mutex<Option<(mpsc::Sender<(i32, bool)>, Buttons)>>,
     input_tx: Mutex<Option<mpsc::Sender<Option<String>>>>,
     pick: Mutex<PickState>,
     page_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
@@ -455,15 +455,16 @@ impl Shell {
     }
 }
 
-impl Host for H {
-    fn dialog(&self, message: &str, title: &str, buttons: Buttons, icon: Icon) -> DialogResult {
+impl H {
+    fn show_dialog(&self, message: &str, title: &str, buttons: Buttons, icon: Icon, can_mute: bool) -> (DialogResult, bool) {
         if self.on_ui_thread() {
             log::log(&format!("[ERROR] dialog requested on UI thread: {title}"));
-            return match buttons {
+            let fallback = match buttons {
                 Buttons::Ok => DialogResult::Ok,
                 Buttons::OkCancel | Buttons::YesNoCancel => DialogResult::Cancel,
                 Buttons::YesNo => DialogResult::No,
             };
+            return (fallback, false);
         }
         let _guard = self.dialog_lock.lock().unwrap();
         let (tx, rx) = mpsc::channel();
@@ -486,11 +487,13 @@ impl Host for H {
             ui.set_dialog_message(ss(&m));
             ui.set_dialog_icon(icon_code);
             ui.set_dialog_buttons(ModelRc::new(VecModel::from(labels)));
+            ui.set_dialog_can_mute(can_mute);
+            ui.set_dialog_muted(false);
             ui.window().set_minimized(false);
             ui.set_dialog_visible(true);
             let _ = ui.window().show();
         });
-        let idx = rx.recv().unwrap_or(-1);
+        let (idx, muted) = rx.recv().unwrap_or((-1, false));
         let result = match (buttons, idx) {
             (Buttons::Ok, _) => DialogResult::Ok,
             (Buttons::OkCancel, 1) => DialogResult::Ok,
@@ -502,6 +505,30 @@ impl Host for H {
             (Buttons::YesNoCancel, 1) => DialogResult::No,
             (Buttons::YesNoCancel, _) => DialogResult::Cancel,
         };
+        (result, muted && can_mute)
+    }
+}
+
+impl Host for H {
+    fn dialog(&self, message: &str, title: &str, buttons: Buttons, icon: Icon) -> DialogResult {
+        self.show_dialog(message, title, buttons, icon, false).0
+    }
+
+    fn dialog_mutable(&self, key: &str, message: &str, title: &str, buttons: Buttons, icon: Icon) -> DialogResult {
+        if platform::dialog_muted(key) {
+            log::log(&format!("Dialog \"{title}\" ({key}) not shown: the user chose not to see it again."));
+            return match buttons {
+                Buttons::Ok | Buttons::OkCancel => DialogResult::Ok,
+                Buttons::YesNo | Buttons::YesNoCancel => DialogResult::Yes,
+            };
+        }
+        let (result, muted) = self.show_dialog(message, title, buttons, icon, true);
+        if muted && result.accepted() {
+            match platform::mute_dialog(key) {
+                Ok(()) => log::log(&format!("Dialog \"{title}\" ({key}): the user chose not to see it again.")),
+                Err(e) => log::log(&format!("[WARN] Dialog \"{title}\" ({key}): could not save \"do not show again\": {e}")),
+            }
+        }
         result
     }
 
@@ -743,11 +770,13 @@ pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
     {
         let s = shell.clone();
         ui.on_dialog_choose(move |i| {
+            let mut muted = false;
             if let Some(ui) = s.weak.upgrade() {
+                muted = ui.get_dialog_muted();
                 ui.set_dialog_visible(false);
             }
             if let Some((tx, _)) = s.dialog_tx.lock().unwrap().take() {
-                let _ = tx.send(i);
+                let _ = tx.send((i, muted));
             }
         });
     }
@@ -869,11 +898,10 @@ pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
             if !crate::pages::is_xos() && !dev_screenshot {
                 let s2 = s.clone();
                 std::thread::spawn(move || {
-                    s2.host().dialog(
+                    s2.host().warn_once(
+                        "NonXosWelcome",
                         "This tool is designed for XOS users.\n\nYou can still use it on a standard Windows install, but expect bugs, stability problems, and limited functionality. Some options rely on registry keys, services, and tweaks that the XOS Playbook sets up.\n\nFor the full experience, apply the XOS Playbook first.",
                         "XOS Toolkit",
-                        Buttons::Ok,
-                        Icon::Warning,
                     );
                 });
             }

@@ -1,4 +1,4 @@
-import { ScrollView, LineEdit, Palette, ListView } from "std-widgets.slint";
+import { ScrollView, LineEdit, Palette, ListView, CheckBox } from "std-widgets.slint";
 import { Theme } from "theme.slint";
 import { Bridge, Modal, PairD, CardD, RowD, ControlD, CellRowD, ColumnD, RowButtonD, BadgeD, XButton, PairView } from "widgets.slint";
 
@@ -109,6 +109,8 @@ export component AppWindow inherits Window {
     in property <string> dialog-message;
     in property <int> dialog-icon;
     in property <[string]> dialog-buttons;
+    in property <bool> dialog-can-mute;
+    in-out property <bool> dialog-muted;
 
     in property <bool> input-visible;
     in property <string> input-title;
@@ -456,7 +458,7 @@ export component AppWindow inherits Window {
         accessible-role: groupbox;
         accessible-label: root.dialog-title;
         accessible-id: "dialog";
-        FocusScope {
+        dfs := FocusScope {
             init => { self.focus(); }
             key-pressed(e) => {
                 if (e.text == Key.Escape) { root.dialog-choose(-1); return accept; }
@@ -499,8 +501,14 @@ export component AppWindow inherits Window {
                     }
                 }
                 HorizontalLayout {
-                    alignment: end;
                     spacing: 8px;
+                    if root.dialog-can-mute: CheckBox {
+                        accessible-id: "dialog/mute";
+                        text: "Do not show this again";
+                        checked <=> root.dialog-muted;
+                        toggled => { dfs.focus(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
                     for b[i] in root.dialog-buttons: XButton {
                         text: b;
                         kind: i == root.dialog-buttons.length - 1 ? 0 : 4;

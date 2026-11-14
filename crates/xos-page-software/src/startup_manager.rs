@@ -1273,7 +1273,8 @@ impl StartupManagerPage {
 
     fn logon_hide_changed(&self, host: &dyn Host, hide: bool) {
         if !hide
-            && !host.confirm(
+            && !host.confirm_once(
+                "StartupShowMicrosoftLogon",
                 "Microsoft logon entries are part of Windows and installed Microsoft software.\n\nDisabling or removing them may break system functionality or installed applications. This view is intended for Power Users only.\n\nAre you sure you want to show Microsoft items?",
                 "Warning",
                 Icon::Warning,
@@ -1287,7 +1288,8 @@ impl StartupManagerPage {
 
     fn tasks_hide_changed(&self, host: &dyn Host, hide: bool) {
         if !hide
-            && !host.confirm(
+            && !host.confirm_once(
+                "StartupShowMicrosoftTasks",
                 "Microsoft Scheduled Tasks are required for Windows to function correctly.\n\nDisabling or modifying them may cause system instability, broken Windows features, and application compatibility issues.\n\nThis view is intended for Power Users only. Are you sure you want to continue?",
                 "Warning",
                 Icon::Warning,
