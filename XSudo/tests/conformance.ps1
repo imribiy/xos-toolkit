@@ -12,7 +12,8 @@
 
   Every probe header line carries an EXPECTED-DIFF marker when a difference is intended
   (exit-code forwarding, banner/message wording). A difference in a probe WITHOUT a marker
-  is a real incompatibility.
+  is a real incompatibility. The launcher is never started without arguments: XSudo opens
+  its window there (a deliberate difference from MinSudo), so G18 checks --help instead.
 
   Must run from an elevated (High integrity) PowerShell 7. Child commands are read-only
   (whoami, echo, cmd /c exit N, ping 127.0.0.1, powershell read-only expressions).
@@ -81,6 +82,7 @@ $ps = "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe"
 # ---------------------------------------------------------------- runner and normalizer
 function Invoke-Probe {
     param([string]$ArgLine, [string]$Stdin = $null, [string]$Cwd = $null, [int]$TimeoutMs = 60000)
+    if ([string]::IsNullOrWhiteSpace($ArgLine)) { throw 'Refusing to start the launcher without arguments: XSudo opens its window there.' }
     $psi = [Diagnostics.ProcessStartInfo]::new($Exe, $ArgLine)
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true; $psi.RedirectStandardError = $true; $psi.RedirectStandardInput = $true
@@ -161,7 +163,7 @@ Add-Probe G14 'unknown option then no command runs default shell' '--NoLogo --bo
 Add-Probe G15 '--version before a command is ignored, command runs' '--NoLogo --version cmd /c echo q'
 Add-Probe G16 '--help after other args is ignored, command runs' '--NoLogo --help cmd /c echo q'
 Add-Probe G17 '--version first arg but a command follows: command runs' '--version cmd /c echo q' -Diff text
-Add-Probe G18 'no arguments runs default shell (stdin fed)' '' -Stdin "echo shell-ran${NL}exit${NL}"
+Add-Probe G18 'usage via --help; no-argument start never probed: XSudo opens its window there, deliberately unlike MinSudo' '--help' -Diff text -NoOut
 Add-Probe G19 '-NoL alias' '-nol cmd /c echo a'
 Add-Probe G20 '/nologo alias' '/nologo cmd /c echo a'
 Add-Probe G21 '--nologo=1 (value ignored)' '--nologo=1 cmd /c echo a'

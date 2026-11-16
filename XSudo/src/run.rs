@@ -79,7 +79,7 @@ fn run_admin(
     sys::wait_for_exit(launched.process.0).ok_or(ERR_CHILD)
 }
 
-fn open_richest_system_source(exe_lower: &str) -> Option<sys::Handle> {
+pub(crate) fn open_richest_system_source(exe_lower: &str) -> Option<sys::Handle> {
     let mut tries = 0;
     loop {
         let mut best: Option<sys::Handle> = None;
@@ -104,7 +104,7 @@ fn open_richest_system_source(exe_lower: &str) -> Option<sys::Handle> {
     }
 }
 
-fn open_pid_source(pid: u32) -> Option<sys::Handle> {
+pub(crate) fn open_pid_source(pid: u32) -> Option<sys::Handle> {
     let mut tries = 0;
     loop {
         if let Some(tok) = sys::open_source_token(pid) {

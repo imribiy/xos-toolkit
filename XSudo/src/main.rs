@@ -3,7 +3,11 @@
 mod cli;
 mod elevate;
 mod exitcode;
+mod gui;
+mod launch;
 mod run;
+mod settings;
+mod shellmenu;
 mod sys;
 
 use cli::Command;
@@ -14,8 +18,8 @@ use exitcode::as_process_code;
 use exitcode::ERR_ELEVATION;
 use exitcode::ERR_USAGE;
 
-const VERSION_LINE: &str = "XSudo 1.0.0";
-const COPYRIGHT_LINE: &str = "(c) 2026 XOS (imribiy)";
+pub(crate) const VERSION_LINE: &str = "XSudo 1.0.0";
+pub(crate) const COPYRIGHT_LINE: &str = "(c) 2026 XOS (imribiy)";
 
 fn print_banner() {
     println!("{VERSION_LINE}");
@@ -26,15 +30,16 @@ fn print_version() {
     print_banner();
 }
 
-fn print_help() {
-    print_banner();
-    let text = "\
+pub(crate) const HELP_TEXT: &str = "\
 Run a command with elevated identity in the current console.
 
 Usage:
   XSudo [options] [program] [arguments...]
+  XSudo --Launch FILE
+  XSudo
 
-If no program is given, cmd.exe is started.
+If options but no program are given, cmd.exe is started. With no arguments at
+all, XSudo opens its window, which runs saved programs as TrustedInstaller.
 
 Options (names are case insensitive; -, --, and / all work as prefixes):
   --Help, -H, /?            Show this help and exit.
@@ -46,6 +51,9 @@ Options (names are case insensitive; -, --, and / all work as prefixes):
   --Privileged, -P          Enable every privilege present in the token.
   --WorkDir=PATH, -WD=PATH  Set the child working directory (= or : separates
                             the value; a space does not).
+  --Launch FILE             Run FILE as TrustedInstaller in its own window and
+                            return at once (first argument only; .bat, .cmd,
+                            .ps1 and .msc files run through their host).
 
 With no mode option the command runs as Administrator. Options that appear
 after the program name are passed to the child unchanged.
@@ -54,7 +62,10 @@ Exit codes:
   The child's real exit code is returned when it was started and has exited.
   XSudo's own failures use reserved codes: 0x58530001 usage, 0x58530002
   elevation, 0x58530003 identity, 0x58530004 child start, 0x58530005 workdir.";
-    println!("{text}");
+
+fn print_help() {
+    print_banner();
+    println!("{HELP_TEXT}");
 }
 
 fn print_error(message: &str) {
@@ -90,8 +101,15 @@ fn exit(code: u32) -> ! {
 }
 
 fn main() {
-    sys::install_passthrough_ctrl_handler();
     let raw = sys::get_command_line();
+    let tokens = cli::tokenize(&raw);
+    if tokens.len() <= 1 {
+        gui::run();
+    }
+    if launch::is_launch_switch(&tokens[1].text) {
+        launch::launch_switch(&raw);
+    }
+    sys::install_passthrough_ctrl_handler();
     let (cmd, was_elevated_stage) = elevate::handle_elevated_stage(&raw);
 
     match cli::parse(&cmd) {

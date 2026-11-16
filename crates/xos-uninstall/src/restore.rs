@@ -2328,7 +2328,95 @@ pub fn restore_deterministic_xos_leftovers() -> bool {
         }
     }
 
+    ok &= remove_xsudo_install();
     ok &= restore_windows_time_configuration();
+    ok
+}
+
+pub const XSUDO_SHELL_CLASSES: [&str; 4] = [
+    "exefile",
+    "batfile",
+    "cmdfile",
+    "Microsoft.PowerShellScript.1",
+];
+
+pub struct XsudoInstallPaths {
+    pub dir: std::path::PathBuf,
+    pub exe: std::path::PathBuf,
+    pub shortcut: std::path::PathBuf,
+    pub shell_keys: Vec<String>,
+}
+
+pub fn xsudo_install_paths(program_files: &str, program_data: &str) -> XsudoInstallPaths {
+    let dir = Path::new(program_files).join("XSudo");
+    XsudoInstallPaths {
+        exe: dir.join("XSudo.exe"),
+        dir,
+        shortcut: Path::new(program_data)
+            .join(r"Microsoft\Windows\Start Menu\Programs")
+            .join("XSudo.lnk"),
+        shell_keys: XSUDO_SHELL_CLASSES
+            .iter()
+            .map(|c| format!(r"HKLM\SOFTWARE\Classes\{c}\shell\XSudoRunAsTI"))
+            .collect(),
+    }
+}
+
+fn delete_now_or_at_restart(path: &Path, is_dir: bool) -> Result<&'static str, String> {
+    let removed = if is_dir {
+        std::fs::remove_dir(path)
+    } else {
+        std::fs::remove_file(path)
+    };
+    match removed {
+        Ok(()) => Ok("removed"),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok("not present"),
+        Err(e) => {
+            let wide = windows::core::HSTRING::from(path.as_os_str());
+            unsafe {
+                windows::Win32::Storage::FileSystem::MoveFileExW(
+                    &wide,
+                    windows::core::PCWSTR::null(),
+                    windows::Win32::Storage::FileSystem::MOVEFILE_DELAY_UNTIL_REBOOT,
+                )
+            }
+            .map(|_| "in use, removed at the next restart")
+            .map_err(|e2| format!("{e}; removal at restart could not be scheduled: {e2}"))
+        }
+    }
+}
+
+pub fn remove_xsudo_install() -> bool {
+    let program_files = std::env::var("ProgramW6432")
+        .or_else(|_| std::env::var("ProgramFiles"))
+        .unwrap_or_else(|_| r"C:\Program Files".to_string());
+    let program_data =
+        std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+    let paths = xsudo_install_paths(&program_files, &program_data);
+    let mut ok = true;
+    let previous = paths.dir.join("XSudo.exe.old");
+    for (path, is_dir, label) in [
+        (&paths.exe, false, "XSudo program"),
+        (&previous, false, "XSudo program replaced while in use"),
+        (&paths.shortcut, false, "XSudo Start menu shortcut"),
+        (&paths.dir, true, "XSudo folder"),
+    ] {
+        match delete_now_or_at_restart(path, is_dir) {
+            Ok(what) => uninstall_log(&format!("  {label} {}: {what}", path.display())),
+            Err(e) => {
+                ok = false;
+                uninstall_log(&format!("  {label} {}: FAILED ({e})", path.display()));
+            }
+        }
+    }
+    for key in &paths.shell_keys {
+        if xos_sys::reg_key_exists(key) {
+            ok &= uninstall_reg_del_key(key);
+        } else {
+            uninstall_log(&format!("  DELKEY: not found  -- {key}"));
+        }
+    }
+    uninstall_log(r"  The XSudo window's saved list (%APPDATA%\XSudo) is left to the user");
     ok
 }
 
@@ -2765,6 +2853,26 @@ pub fn verify_compatibility_restore(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xsudo_install_paths_match_the_playbook_and_the_window() {
+        let p = xsudo_install_paths(r"C:\Program Files", r"C:\ProgramData");
+        assert_eq!(p.dir, Path::new(r"C:\Program Files\XSudo"));
+        assert_eq!(p.exe, Path::new(r"C:\Program Files\XSudo\XSudo.exe"));
+        assert_eq!(
+            p.shortcut,
+            Path::new(r"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\XSudo.lnk")
+        );
+        assert_eq!(
+            p.shell_keys,
+            [
+                r"HKLM\SOFTWARE\Classes\exefile\shell\XSudoRunAsTI",
+                r"HKLM\SOFTWARE\Classes\batfile\shell\XSudoRunAsTI",
+                r"HKLM\SOFTWARE\Classes\cmdfile\shell\XSudoRunAsTI",
+                r"HKLM\SOFTWARE\Classes\Microsoft.PowerShellScript.1\shell\XSudoRunAsTI",
+            ]
+        );
+    }
 
     #[test]
     fn feature_log_entry_parses_name_before_dash() {

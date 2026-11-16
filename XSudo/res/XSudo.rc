@@ -1,6 +1,42 @@
 #include <winver.h>
+#include <windows.h>
 
 1 24 "XSudo.manifest"
+
+1 ICON "XSudo.ico"
+
+101 DIALOGEX 0, 0, 330, 146
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Program"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    LTEXT           "&File:", 1101, 7, 10, 64, 8
+    EDITTEXT        1001, 74, 8, 192, 14, ES_AUTOHSCROLL
+    PUSHBUTTON      "&Browse...", 1002, 272, 7, 51, 15
+    LTEXT           "&Parameters:", 1102, 7, 30, 64, 8
+    EDITTEXT        1003, 74, 28, 249, 14, ES_AUTOHSCROLL
+    LTEXT           "Start &directory:", 1103, 7, 50, 64, 8
+    EDITTEXT        1004, 74, 48, 192, 14, ES_AUTOHSCROLL
+    PUSHBUTTON      "B&rowse...", 1005, 272, 47, 51, 15
+    LTEXT           "Environment variables such as %SystemRoot% are expanded when the program runs. An empty start directory means the file's folder.", 1104, 74, 65, 249, 18
+    GROUPBOX        "Window", 1105, 7, 87, 316, 28
+    AUTORADIOBUTTON "&Normal", 1006, 15, 99, 66, 10, WS_GROUP | WS_TABSTOP
+    AUTORADIOBUTTON "&Hidden", 1007, 91, 99, 66, 10
+    AUTORADIOBUTTON "&Minimized", 1008, 167, 99, 66, 10
+    AUTORADIOBUTTON "Ma&ximized", 1009, 243, 99, 70, 10
+    DEFPUSHBUTTON   "&Save", IDOK, 158, 124, 51, 15, WS_GROUP
+    PUSHBUTTON      "R&un", 1010, 215, 124, 51, 15
+    PUSHBUTTON      "Cancel", IDCANCEL, 272, 124, 51, 15
+END
+
+102 DIALOGEX 0, 0, 380, 230
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Command line usage"
+FONT 9, "Segoe UI", 400, 0, 0x1
+BEGIN
+    EDITTEXT        1201, 7, 7, 366, 196, ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | ES_AUTOHSCROLL | WS_VSCROLL | WS_HSCROLL
+    DEFPUSHBUTTON   "OK", IDOK, 322, 208, 51, 15
+END
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION 1,0,0,0
