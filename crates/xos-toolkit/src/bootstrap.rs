@@ -17,7 +17,11 @@ fn marker() -> PathBuf {
 }
 
 fn utc_o() -> String {
-    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.7fZ").to_string()
+    format_utc_o(chrono::Utc::now())
+}
+
+fn format_utc_o(t: chrono::DateTime<chrono::Utc>) -> String {
+    format!("{}.{:07}Z", t.format("%Y-%m-%dT%H:%M:%S"), (t.timestamp_subsec_nanos() / 100).min(9_999_999))
 }
 
 fn has_previous_toolkit_logs() -> bool {
@@ -47,10 +51,15 @@ fn write_marker(reason: &str) {
 
 pub fn claim() -> bool {
     let m = marker();
-    if m.exists() {
+    let crashed_first_launch = std::fs::metadata(&m).map(|x| x.len() == 0).unwrap_or(false);
+    if m.exists() && !crashed_first_launch {
         return false;
     }
-    if has_previous_toolkit_logs() {
+    if crashed_first_launch {
+        if std::fs::remove_file(&m).is_err() {
+            return false;
+        }
+    } else if has_previous_toolkit_logs() {
         write_marker("migrated");
         return false;
     }
@@ -89,4 +98,17 @@ pub fn running() -> bool {
 pub fn wait(timeout: Duration) {
     let guard = DONE.0.lock().unwrap();
     let _ = DONE.1.wait_timeout_while(guard, timeout, |done| !*done);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+
+    #[test]
+    fn utc_o_has_seven_fraction_digits() {
+        let t = chrono::Utc.with_ymd_and_hms(2026, 11, 15, 16, 1, 10).unwrap() + chrono::Duration::nanoseconds(123_456_789);
+        assert_eq!(format_utc_o(t), "2026-11-15T16:01:10.1234567Z");
+        assert_eq!(utc_o().len(), 28);
+    }
 }

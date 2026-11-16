@@ -1204,7 +1204,7 @@ impl Page for DriverCleanerPage {
                         Control::button("refresh", "\u{21BB}  Refresh", BtnStyle::Action).enabled(idle),
                     ])
                     .controls(vec![
-                        Control::muted(count_text),
+                        Control::muted(count_text).id("count"),
                         Control::spacer(),
                         Control::check("force", "Force delete (use if normal delete fails)", st.force),
                     ]),

@@ -1,7 +1,7 @@
 use winreg::enums::{KEY_READ, REG_DWORD};
 use winreg::RegKey;
 
-use crate::elevation::{run_as_ti, run_as_ti_timeout};
+use crate::elevation::{run_as_ti, run_as_ti_accepting, run_as_ti_best_effort, run_as_ti_with, TiOptions};
 use crate::ops::track;
 use crate::reg::{key_get_string, reg_delete_value, reg_get_dword, reg_set_dword};
 use crate::util::{
@@ -48,7 +48,7 @@ $failed=$false;\
 $services=@({names});\
 foreach($name in $services){{\
 $path='HKLM:\\SYSTEM\\CurrentControlSet\\Services\\' + $name;\
-if(-not (Test-Path -LiteralPath $path) -or $null -eq (Get-ItemPropertyValue -LiteralPath $path -Name 'Type' -ErrorAction SilentlyContinue)){{continue;}}\
+if(-not (Test-Path -LiteralPath $path) -or $null -eq (Get-ItemProperty -LiteralPath $path -ErrorAction SilentlyContinue).Type){{continue;}}\
 try{{\
 if($grouped){{\
 New-ItemProperty -LiteralPath $path -Name 'SvcHostSplitDisable' -PropertyType DWord -Value 1 -Force -ErrorAction Stop | Out-Null;\
@@ -56,7 +56,7 @@ $value=Get-ItemPropertyValue -LiteralPath $path -Name 'SvcHostSplitDisable' -Err
 if($value -ne 1){{throw 'Value verification failed.'}}\
 }}else{{\
 Remove-ItemProperty -LiteralPath $path -Name 'SvcHostSplitDisable' -Force -ErrorAction SilentlyContinue;\
-$value=Get-ItemPropertyValue -LiteralPath $path -Name 'SvcHostSplitDisable' -ErrorAction SilentlyContinue;\
+$value=(Get-ItemProperty -LiteralPath $path -ErrorAction SilentlyContinue).SvcHostSplitDisable;\
 if($null -ne $value){{throw 'Value deletion verification failed.'}}\
 }}\
 }}catch{{\
@@ -137,7 +137,7 @@ pub fn enable_windows_search() -> bool {
         operation_ok &= restored;
     }
 
-    operation_ok &= run_as_ti("sc.exe", "start WSearch");
+    operation_ok &= run_as_ti_accepting("sc.exe", "start WSearch", &[SC_SERVICE_ALREADY_RUNNING]);
     operation_ok
 }
 
@@ -166,10 +166,14 @@ pub fn config_service_sc(service_name: &str, start_str: &str) -> bool {
     };
     let mut ran;
     for attempt in 1..=2 {
-        ran = run_as_ti_timeout(
+        ran = run_as_ti_with(
             "sc.exe",
             &format!("config \"{service_name}\" start= {start_str}"),
-            300000,
+            &TiOptions {
+                timeout_ms: Some(300000),
+                best_effort: true,
+                ..Default::default()
+            },
         );
         let actual = get_service_start_type(service_name);
         if expected < 0 || actual < 0 {
@@ -191,12 +195,31 @@ pub fn config_service_sc(service_name: &str, start_str: &str) -> bool {
     track(false)
 }
 
+pub const SC_SERVICE_ALREADY_RUNNING: i32 = 1056;
+pub const SC_SERVICE_NOT_ACTIVE: i32 = 1062;
+
 pub fn stop_service(service_name: &str) -> bool {
-    run_as_ti("sc.exe", &format!("stop \"{service_name}\""))
+    run_as_ti_accepting(
+        "sc.exe",
+        &format!("stop \"{service_name}\""),
+        &[SC_SERVICE_NOT_ACTIVE],
+    )
 }
 
 pub fn start_service(service_name: &str) -> bool {
-    run_as_ti("sc.exe", &format!("start \"{service_name}\""))
+    run_as_ti_accepting(
+        "sc.exe",
+        &format!("start \"{service_name}\""),
+        &[SC_SERVICE_ALREADY_RUNNING],
+    )
+}
+
+pub fn stop_service_best_effort(service_name: &str) -> bool {
+    run_as_ti_best_effort("sc.exe", &format!("stop \"{service_name}\""))
+}
+
+pub fn start_service_best_effort(service_name: &str) -> bool {
+    run_as_ti_best_effort("sc.exe", &format!("start \"{service_name}\""))
 }
 
 pub fn get_service_delayed_auto_start(service_name: &str) -> i32 {

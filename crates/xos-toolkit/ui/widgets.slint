@@ -42,6 +42,7 @@ export global Modal {
 export global Bridge {
     callback ctl-click(string, string);
     callback ctl-select(string, string, int);
+    callback ctl-select-value(string, string, string);
     callback ctl-check(string, string, bool);
     callback ctl-text(string, string, string);
     callback ctl-submit(string, string, string);
@@ -372,6 +373,11 @@ export component ControlView inherits Rectangle {
             cb := ComboBox {
                 accessible-id: card-id + "/" + c.id;
                 accessible-description: c.tooltip;
+                accessible-action-set-value(v) => {
+                    if (self.enabled && !Modal.open) {
+                        Bridge.ctl-select-value(card-id, c.id, v);
+                    }
+                }
                 width: 100%;
                 model: c.options;
                 current-index: c.selected;

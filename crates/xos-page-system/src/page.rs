@@ -18,6 +18,7 @@ use crate::common::{
 use crate::defender::{self, DefenderOptions, Hooks};
 use crate::security::*;
 
+const WEVT_CHANNEL_NOT_FOUND: i32 = 15007;
 const POL_APP_PRIV: &str = r"HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy";
 const CU_BG_APPS: &str =
     r"HKCU\Software\Microsoft\Windows\CurrentVersion\BackgroundAccessApplications";
@@ -1280,8 +1281,8 @@ impl SystemPage {
         ok &= config_service_reg("DPS", 2);
         ok &= config_service_reg("dusmsvc", 2);
         ok &= config_service_sc("dusmsvc", "auto");
-        run_as_ti("sc.exe", "start Ndu");
-        let dusm_started = run_as_ti("sc.exe", "start dusmsvc");
+        start_service_best_effort("Ndu");
+        let dusm_started = start_service("dusmsvc");
         self.after_change(host);
 
         let mut msg = "GPU & Network monitoring enabled (services set to Automatic).\n\nReboot required for the Data Usage page (Settings > Network) and live network graphs to repopulate - the Ndu driver only tracks usage from boot.".to_string();
@@ -1341,17 +1342,20 @@ impl SystemPage {
         ok &= config_service_reg("WdiServiceHost", 3);
         ok &= config_service_reg("WdiSystemHost", 3);
         reg_delete_value(SLEEP_POWER, "SleepStudyDisabled");
-        ok &= run_as_ti(
+        ok &= run_as_ti_accepting(
             "wevtutil.exe",
-            "sl \"Microsoft-Windows-SleepStudy/Diagnostic\" /q:true",
+            "sl \"Microsoft-Windows-SleepStudy/Diagnostic\" /e:true /q:true",
+            &[WEVT_CHANNEL_NOT_FOUND],
         );
-        ok &= run_as_ti(
+        ok &= run_as_ti_accepting(
             "wevtutil.exe",
-            "sl \"Microsoft-Windows-Kernel-Processor-Power/Diagnostic\" /q:true",
+            "sl \"Microsoft-Windows-Kernel-Processor-Power/Diagnostic\" /e:true /q:true",
+            &[WEVT_CHANNEL_NOT_FOUND],
         );
-        ok &= run_as_ti(
+        ok &= run_as_ti_accepting(
             "wevtutil.exe",
-            "sl \"Microsoft-Windows-UserModePowerService/Diagnostic\" /q:true",
+            "sl \"Microsoft-Windows-UserModePowerService/Diagnostic\" /e:true /q:true",
+            &[WEVT_CHANNEL_NOT_FOUND],
         );
         self.after_change(host);
         self.done(
@@ -1399,17 +1403,20 @@ impl SystemPage {
         ok &= config_service_reg("WdiServiceHost", 4);
         ok &= config_service_reg("WdiSystemHost", 4);
         reg_set_dword(SLEEP_POWER, "SleepStudyDisabled", 1);
-        ok &= run_as_ti(
+        ok &= run_as_ti_accepting(
             "wevtutil.exe",
-            "sl \"Microsoft-Windows-SleepStudy/Diagnostic\" /q:false",
+            "sl \"Microsoft-Windows-SleepStudy/Diagnostic\" /e:false /q:true",
+            &[WEVT_CHANNEL_NOT_FOUND],
         );
-        ok &= run_as_ti(
+        ok &= run_as_ti_accepting(
             "wevtutil.exe",
-            "sl \"Microsoft-Windows-Kernel-Processor-Power/Diagnostic\" /q:false",
+            "sl \"Microsoft-Windows-Kernel-Processor-Power/Diagnostic\" /e:false /q:true",
+            &[WEVT_CHANNEL_NOT_FOUND],
         );
-        ok &= run_as_ti(
+        ok &= run_as_ti_accepting(
             "wevtutil.exe",
-            "sl \"Microsoft-Windows-UserModePowerService/Diagnostic\" /q:false",
+            "sl \"Microsoft-Windows-UserModePowerService/Diagnostic\" /e:false /q:true",
+            &[WEVT_CHANNEL_NOT_FOUND],
         );
         self.after_change(host);
         self.done(

@@ -287,7 +287,15 @@ pub fn run_cmd_timeout(file_name: &str, arguments: &str, timeout_ms: u32) -> boo
     )
 }
 
+pub fn exit_code_accepted(code: i32, allow_restart_required: bool, accepted: &[i32]) -> bool {
+    code == 0 || (allow_restart_required && code == 3010) || accepted.contains(&code)
+}
+
 pub fn run_cmd_opts(file_name: &str, arguments: &str, o: &CmdOptions) -> bool {
+    run_cmd_opts_code(file_name, arguments, o).0
+}
+
+pub fn run_cmd_opts_code(file_name: &str, arguments: &str, o: &CmdOptions) -> (bool, Option<i32>) {
     let timeout_ms = o.timeout_ms.unwrap_or(30000);
     let suppress_log = o.suppress_log;
     if !suppress_log {
@@ -300,7 +308,7 @@ pub fn run_cmd_opts(file_name: &str, arguments: &str, o: &CmdOptions) -> bool {
             if !suppress_log {
                 log::log(&format!("[CMD] -> exception: {}", io_message(&e)));
             }
-            return false;
+            return (false, None);
         }
     };
     if let Some(input) = o.standard_input {
@@ -316,7 +324,7 @@ pub fn run_cmd_opts(file_name: &str, arguments: &str, o: &CmdOptions) -> bool {
         if !suppress_log {
             log::log("[CMD] -> TIMEOUT");
         }
-        return false;
+        return (false, None);
     }
     sp.out.wait_all();
     let stderr = decode_clixml(&decode_stream_bytes(&sp.err.wait_all()));
@@ -327,22 +335,20 @@ pub fn run_cmd_opts(file_name: &str, arguments: &str, o: &CmdOptions) -> bool {
     } else if ms >= 1000 {
         perf_detail(&file_name_of(file_name), ms, "silent call");
     }
-    if !suppress_log && code != 0 && !stderr.trim().is_empty() {
+    let ok_code = exit_code_accepted(code, o.allow_restart_required, o.accepted_exit_codes);
+    if (!suppress_log || !ok_code) && code != 0 && !stderr.trim().is_empty() {
         log::log(&format!(
             "[CMD] -> stderr: {}",
             truncate_for_log(stderr.trim())
         ));
     }
-    let ok_code = code == 0
-        || (o.allow_restart_required && code == 3010)
-        || o.accepted_exit_codes.contains(&code);
     if !ok_code && !suppress_log {
         session_log::operation_failed(
             &format!("command exit {code}"),
             &describe_command(file_name, arguments),
         );
     }
-    ok_code
+    (ok_code, Some(code))
 }
 
 pub fn run_cmd_with_error(file_name: &str, arguments: &str) -> (bool, Option<String>) {
@@ -464,7 +470,11 @@ pub fn shell_start(file_name: &str, arguments: &str) -> bool {
         cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
         fMask: 0x0000_0400 | 0x0000_0100,
         lpFile: pcwstr(&file_w),
-        lpParameters: if arguments.is_empty() { windows::core::PCWSTR::null() } else { pcwstr(&args_w) },
+        lpParameters: if arguments.is_empty() {
+            windows::core::PCWSTR::null()
+        } else {
+            pcwstr(&args_w)
+        },
         nShow: 1,
         ..Default::default()
     };
@@ -573,4 +583,27 @@ pub(crate) fn run_cmd_capture_into(file_name: &str, arguments: &str, sink: &mut 
         sink.push_str("\r\n");
     }
     exit_code_of(&mut sp.child) == 0
+}
+
+#[cfg(test)]
+mod exit_code_tests {
+    use super::exit_code_accepted;
+
+    #[test]
+    fn zero_is_always_accepted() {
+        assert!(exit_code_accepted(0, false, &[]));
+    }
+
+    #[test]
+    fn nonzero_needs_listing() {
+        assert!(!exit_code_accepted(1056, false, &[]));
+        assert!(exit_code_accepted(1056, false, &[1056]));
+        assert!(!exit_code_accepted(1062, false, &[1056]));
+    }
+
+    #[test]
+    fn restart_required_only_when_allowed() {
+        assert!(!exit_code_accepted(3010, false, &[]));
+        assert!(exit_code_accepted(3010, true, &[]));
+    }
 }

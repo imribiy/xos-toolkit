@@ -21,12 +21,17 @@ pub fn set_pnp_devices(enable: bool, filter_expr: &str, rescan_on_enable: bool) 
             rescan_pnp_device_tree();
         }
     }
+    let wrong_state = if enable {
+        "$_.ConfigManagerErrorCode -eq 22"
+    } else {
+        "$_.ConfigManagerErrorCode -ne 22"
+    };
     let script = format!(
         "$ErrorActionPreference='Stop';{rescan}\
-$devices=@(Get-PnpDevice -ErrorAction Stop | Where-Object {{{filter_expr}}});\
-$failed=$false;\
-foreach($device in $devices){{try{{$device | {verb}-PnpDevice -Confirm:$false -ErrorAction Stop | Out-Null}}catch{{$failed=$true}}}};\
-if($failed){{exit 1}}"
+$devices=@(Get-PnpDevice -PresentOnly -ErrorAction Stop | Where-Object {{{filter_expr}}});\
+foreach($device in $devices){{try{{$device | {verb}-PnpDevice -Confirm:$false -ErrorAction Stop | Out-Null}}catch{{}}}};\
+$remaining=@(Get-PnpDevice -PresentOnly -ErrorAction Stop | Where-Object {{{filter_expr}}} | Where-Object {{{wrong_state}}});\
+if($remaining.Count -gt 0){{exit 1}}"
     );
     run_as_ti(
         "powershell.exe",

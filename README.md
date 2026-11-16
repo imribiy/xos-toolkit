@@ -46,6 +46,7 @@ Rules are stored in `%AppData%\XOS Toolkit\CpuRules.json`. The service log is `%
 - `crates/xos-page-*`: one crate per Toolkit page.
 - `crates/xos-core`, `xos-sys`, `xos-helpers`, `xos-cpu`, `xos-winupdate`, `xos-uninstall`: shared logic.
 - `resources/`: data files embedded in the app (power plan, service and registry defaults, NVIDIA profiles, Open-Shell skins).
+- `XSudo/`: the elevation helper (Rust), embedded in the app.
 - `installer.iss`: the Inno Setup installer script.
 
 ## Build
@@ -60,9 +61,10 @@ These files are not in the repository. The app embeds them at compile time, so a
 
 | File | Source | Put it in |
 |---|---|---|
-| `MinSudo.exe` | [NanaRun](https://github.com/M2Team/NanaRun) | `resources/` |
 | `nvidiaProfileInspector.exe`, `nvidiaProfileInspector.exe.config`, `Reference.xml` | [Nvidia Profile Inspector](https://github.com/Orbmu2k/nvidiaProfileInspector) | `resources/Nvidia Profile Inspector/` |
 | `chocolatey-2.7.1.0.msi` (installer only) | [Chocolatey](https://chocolatey.org/install) | `resources/` |
+
+The app also embeds `resources/XSudo.exe`, the elevation helper. It is part of XOS and its source is in `XSudo/`. Build it first with `XSudo\build.ps1 -Install`, which compiles it and copies it to `resources\XSudo.exe`.
 
 Then, from the repository root:
 
@@ -85,4 +87,4 @@ Copyright (c) 2026 XOS (imribiy). Licensed under [CC BY-NC-ND 4.0](LICENSE): you
 
 ## Credits
 
-The app bundles MinSudo from NanaRun by M2Team (MIT), Nvidia Profile Inspector by Orbmu2k, Chocolatey, `DefenderOFF.ps1` (based on LeanAndMean by AveYo, MIT) and the Open-Shell Fluent-Metro skins. Each third-party component keeps its own licence.
+The app bundles XSudo (part of XOS, source in `XSudo/`), Nvidia Profile Inspector by Orbmu2k, Chocolatey, `DefenderOFF.ps1` (based on LeanAndMean by AveYo, MIT) and the Open-Shell Fluent-Metro skins. Each third-party component keeps its own licence; XSudo is covered by the XOS license.

@@ -503,6 +503,7 @@ fn build_apply_script(
             ));
         }
     }
+    script.push_str("exit 0");
     script
 }
 
@@ -535,6 +536,7 @@ fn build_restore_script(instance_id: &str, backup: &DeviceBackup) -> String {
         backup.priority_present,
         backup.priority_value,
     );
+    script.push_str("exit 0");
     script
 }
 
@@ -1069,5 +1071,8 @@ mod tests {
         assert!(s.contains("DevicePriority -PropertyType DWord -Value 2"));
         let r = build_restore_script("PCI\\X", &DeviceBackup::default());
         assert!(r.contains("Remove-ItemProperty -Path $a -Name DevicePriority"));
+        assert!(s.ends_with(";exit 0") && r.ends_with(";exit 0"));
+        let off = build_apply_script("PCI\\X", true, true, false, None, false, 0);
+        assert!(off.ends_with("-Name MessageNumberLimit -Force -ErrorAction SilentlyContinue;exit 0"));
     }
 }

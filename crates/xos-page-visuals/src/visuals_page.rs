@@ -559,11 +559,11 @@ impl VisualsPage {
         xos_sys::ops::reset();
         if enable {
             let ok = xos_sys::config_service_sc("Themes", "auto");
-            xos_sys::start_service("Themes");
+            xos_sys::start_service_best_effort("Themes");
             self.refresh_states();
             self.done(host, "Windows Themes enabled. Please reboot.", !ok, false);
         } else {
-            xos_sys::stop_service("Themes");
+            xos_sys::stop_service_best_effort("Themes");
             let ok = xos_sys::config_service_sc("Themes", "disabled");
             self.refresh_states();
             self.done(host, "Windows Themes disabled. Please reboot.", !ok, false);

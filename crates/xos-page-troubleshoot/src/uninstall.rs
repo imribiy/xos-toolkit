@@ -2414,7 +2414,8 @@ fn uninstall_open_shell() {
     );
     let smeh_exe = u::path_combine(&smeh_dir, "StartMenuExperienceHost.exe");
     let smeh_old = u::path_combine(&smeh_dir, "StartMenuExperienceHost.exe.old");
-    if Path::new(&smeh_old).is_file() && !Path::new(&smeh_exe).is_file() {
+    let smeh_restore_needed = Path::new(&smeh_old).is_file() && !Path::new(&smeh_exe).is_file();
+    if smeh_restore_needed {
         let restored = xos_sys::run_as_ti(
             "cmd.exe",
             &format!("/c ren \"{smeh_old}\" \"StartMenuExperienceHost.exe\""),
@@ -2429,10 +2430,14 @@ fn uninstall_open_shell() {
 
     let reregister_script: &str = REREGISTER_SCRIPT;
     let reregister_encoded = u::encode_power_shell_command(reregister_script);
-    let reregistered = xos_sys::run_as_ti(
-        "powershell.exe",
-        &format!("-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {reregister_encoded}"),
+    let reregister_arguments = format!(
+        "-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {reregister_encoded}"
     );
+    let reregistered = if smeh_restore_needed || !Path::new(&smeh_exe).is_file() {
+        xos_sys::run_as_ti("powershell.exe", &reregister_arguments)
+    } else {
+        xos_sys::run_as_ti_best_effort("powershell.exe", &reregister_arguments)
+    };
     rec(reregistered);
     log(&format!(
         "  Start menu package re-registered: {}",

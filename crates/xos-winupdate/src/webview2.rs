@@ -33,7 +33,7 @@ use xos_sys::{
     get_scheduled_task_paths_by_name_prefix, get_service_start_type, get_task_state,
     record_task_state_failure, reg_delete_key, reg_delete_value, reg_get_dword, reg_get_string,
     reg_set_dword, reg_set_string, run_as_ti_renamed_timeout, run_as_ti_timeout,
-    run_cmd_output_timeout, service_exists, stop_service, try_disable_task_quiet,
+    run_cmd_output_timeout, service_exists, stop_service, stop_service_best_effort, try_disable_task_quiet,
 };
 
 use crate::util::{
@@ -437,7 +437,7 @@ fn disable_updater_infrastructure(force: bool) -> Result<bool> {
             continue;
         }
         if is_service_running(service) {
-            stop_service(service);
+            stop_service_best_effort(service);
             std::thread::sleep(Duration::from_millis(300));
         }
         if is_service_running(service) {

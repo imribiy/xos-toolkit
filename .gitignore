@@ -1,6 +1,7 @@
 /target/
+# Built from XSudo, see README.md
+resources/XSudo.exe
 # Third-party files, download them as described in README.md
-resources/MinSudo.exe
 resources/chocolatey-*.msi
 resources/Nvidia Profile Inspector/nvidiaProfileInspector.exe
 resources/Nvidia Profile Inspector/nvidiaProfileInspector.exe.config

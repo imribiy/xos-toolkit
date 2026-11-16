@@ -56,6 +56,18 @@ thread_local! {
     static PICK_MODEL: RefCell<Option<Rc<VecModel<PickItemD>>>> = const { RefCell::new(None) };
 }
 
+fn option_index_in(model: &PageModel, card: &str, control: &str, value: &str) -> Option<i32> {
+    model
+        .cards
+        .iter()
+        .filter(|c| c.id == card)
+        .flat_map(|c| c.rows.iter())
+        .flat_map(|r| r.controls.iter())
+        .find(|c| c.id == control && c.kind == Kind::Combo)
+        .and_then(|c| c.options.iter().position(|o| o == value))
+        .map(|i| i as i32)
+}
+
 fn ss(s: &str) -> SharedString {
     SharedString::from(s)
 }
@@ -106,6 +118,11 @@ impl Shell {
             return m.clone();
         }
         self.page(id).map(|p| p.model()).unwrap_or_else(|| PageModel::new(id, id, ""))
+    }
+
+    fn option_index(&self, card: &str, control: &str, value: &str) -> Option<i32> {
+        let current = self.state.lock().unwrap().current.clone();
+        option_index_in(&self.latest_model(&current), card, control, value)
     }
 
     fn search_model(&self, query: &str) -> PageModel {
@@ -330,6 +347,14 @@ impl Shell {
                     .unwrap_or_default();
                 format!("{button} {row_name}").trim().to_string()
             }
+            EventKind::HeaderClick(col) => card
+                .rows
+                .iter()
+                .flat_map(|r| r.controls.iter())
+                .find(|c| c.id == ev.control)
+                .and_then(|c| c.table.as_ref())
+                .and_then(|t| t.columns.get(*col))
+                .map(|c| format!("sort {}", c.title.trim_end_matches(['\u{25B2}', '\u{25BC}', ' '])))?,
             _ => return None,
         };
         let title = if card.title.is_empty() { "(no card)".to_string() } else { card.title.clone() };
@@ -843,6 +868,14 @@ pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
         bridge.on_ctl_click(move |card, control| s.dispatch(Event { card: card.to_string(), control: control.to_string(), kind: EventKind::Click }));
     }
     wire!(on_ctl_select, |i| EventKind::Select(i));
+    {
+        let s = shell.clone();
+        bridge.on_ctl_select_value(move |card, control, value| {
+            if let Some(i) = s.option_index(card.as_str(), control.as_str(), value.as_str()) {
+                s.dispatch(Event { card: card.to_string(), control: control.to_string(), kind: EventKind::Select(i) });
+            }
+        });
+    }
     wire!(on_ctl_check, |b| EventKind::Check(b));
     wire!(on_ctl_text, |t| EventKind::Text(t.to_string()));
     wire!(on_ctl_submit, |t| EventKind::Submit(t.to_string()));
@@ -909,4 +942,21 @@ pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
     }
 
     ui.run()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn option_index_finds_the_combo_option() {
+        let model = PageModel::new("P", "P", "").card(Card::new("svc:a", "A (a)", "").controls(vec![Control::combo(
+            "svc:a",
+            vec!["Automatic".to_string(), "Manual".to_string(), "Disabled (Recommended)".to_string()],
+            0,
+        )]));
+        assert_eq!(option_index_in(&model, "svc:a", "svc:a", "Disabled (Recommended)"), Some(2));
+        assert_eq!(option_index_in(&model, "svc:a", "svc:a", "Boot"), None);
+        assert_eq!(option_index_in(&model, "svc:b", "svc:a", "Manual"), None);
+    }
 }

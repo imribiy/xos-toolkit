@@ -360,7 +360,7 @@ impl Page for AppXPage {
                     Control::button("refresh", "\u{21bb}  Refresh", BtnStyle::Action)
                         .enabled(!st.view_loading),
                 ])
-                .controls(vec![Control::muted(count_text)]),
+                .controls(vec![Control::muted(count_text).id("count")]),
         )
         .card(
             Card::new("packages", "", "")

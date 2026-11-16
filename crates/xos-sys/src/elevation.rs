@@ -15,7 +15,7 @@ use windows::Win32::Security::{
 
 use crate::clixml::{decode_clixml, empty_stderr_suffix};
 use crate::process::{
-    describe_command, ensure_hidden_powershell_arguments, run_cmd_opts, spawn_hidden,
+    describe_command, ensure_hidden_powershell_arguments, run_cmd_opts_code, spawn_hidden,
     terminate_process_tree, wait_for_exit, CmdOptions,
 };
 use crate::util::{
@@ -27,13 +27,13 @@ use xos_core::{log, session_log};
 pub const TRUSTED_INSTALLER_NO_CHILD_RESULT: &str =
     "TrustedInstaller did not return the child result.";
 
-static MIN_SUDO: &[u8] = include_bytes!("../../../resources/MinSudo.exe");
+static XSUDO: &[u8] = include_bytes!("../../../resources/XSudo.exe");
 
 fn resources() -> &'static Mutex<HashMap<String, &'static [u8]>> {
     static R: OnceLock<Mutex<HashMap<String, &'static [u8]>>> = OnceLock::new();
     R.get_or_init(|| {
         let mut m: HashMap<String, &'static [u8]> = HashMap::new();
-        m.insert("XOSToolkit.MinSudo.exe".to_string(), MIN_SUDO);
+        m.insert("XOSToolkit.XSudo.exe".to_string(), XSUDO);
         m.insert(
             "XOSToolkit.WindowsUpdateServiceGuard.ps1".to_string(),
             include_bytes!("../../../resources/WindowsUpdateServiceGuard.ps1"),
@@ -206,28 +206,28 @@ pub fn extract_protected_bytes(file_name: &str, data: &[u8]) -> Option<String> {
     }
 }
 
-fn min_sudo_cache() -> &'static Mutex<Option<String>> {
+fn xsudo_cache() -> &'static Mutex<Option<String>> {
     static C: OnceLock<Mutex<Option<String>>> = OnceLock::new();
     C.get_or_init(|| Mutex::new(None))
 }
 
-pub(crate) fn ensure_min_sudo() -> Option<String> {
-    let mut cache = min_sudo_cache().lock().unwrap();
+pub(crate) fn ensure_xsudo() -> Option<String> {
+    let mut cache = xsudo_cache().lock().unwrap();
     if let Some(p) = cache.as_ref() {
         if std::path::Path::new(p).exists() {
             return Some(p.clone());
         }
     }
-    let mut path = extract_protected_resource("XOSToolkit.MinSudo.exe", "MinSudo.exe");
+    let mut path = extract_protected_resource("XOSToolkit.XSudo.exe", "XSudo.exe");
     if path.is_none() {
         let name = resources()
             .lock()
             .unwrap()
             .keys()
-            .find(|n| n.to_lowercase().ends_with("minsudo.exe"))
+            .find(|n| n.to_lowercase().ends_with("xsudo.exe"))
             .cloned();
         if let Some(n) = name {
-            path = extract_protected_resource(&n, "MinSudo.exe");
+            path = extract_protected_resource(&n, "XSudo.exe");
         }
     }
     let path = path?;
@@ -239,16 +239,72 @@ pub fn run_as_ti(file_name: &str, arguments: &str) -> bool {
     run_as_ti_timeout(file_name, arguments, 300000)
 }
 
+pub const XSUDO_OWN_EXIT_CODE_FIRST: i32 = 0x5853_0001;
+pub const XSUDO_OWN_EXIT_CODE_LAST: i32 = 0x5853_0005;
+
+pub fn is_xsudo_own_exit_code(code: i32) -> bool {
+    (XSUDO_OWN_EXIT_CODE_FIRST..=XSUDO_OWN_EXIT_CODE_LAST).contains(&code)
+}
+
+fn ti_failure_suffix(code: Option<i32>) -> String {
+    match code {
+        Some(c) if is_xsudo_own_exit_code(c) => format!(" (launcher exit 0x{c:X})"),
+        Some(c) if c != 0 => format!(" (exit {c})"),
+        _ => String::new(),
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub struct TiOptions<'a> {
+    pub timeout_ms: Option<u32>,
+    pub accepted_exit_codes: &'a [i32],
+    pub best_effort: bool,
+}
+
 pub fn run_as_ti_timeout(file_name: &str, arguments: &str, timeout_ms: u32) -> bool {
+    run_as_ti_with(
+        file_name,
+        arguments,
+        &TiOptions {
+            timeout_ms: Some(timeout_ms),
+            ..Default::default()
+        },
+    )
+}
+
+pub fn run_as_ti_accepting(file_name: &str, arguments: &str, accepted_exit_codes: &[i32]) -> bool {
+    run_as_ti_with(
+        file_name,
+        arguments,
+        &TiOptions {
+            accepted_exit_codes,
+            ..Default::default()
+        },
+    )
+}
+
+pub fn run_as_ti_best_effort(file_name: &str, arguments: &str) -> bool {
+    run_as_ti_with(
+        file_name,
+        arguments,
+        &TiOptions {
+            best_effort: true,
+            ..Default::default()
+        },
+    )
+}
+
+pub fn run_as_ti_with(file_name: &str, arguments: &str, o: &TiOptions) -> bool {
+    let timeout_ms = o.timeout_ms.unwrap_or(300000);
     let child_arguments = ensure_hidden_powershell_arguments(file_name, arguments);
     log::log(&format!(
         "[TI]  {}",
         describe_command(file_name, &child_arguments)
     ));
-    let min_sudo = ensure_min_sudo();
+    let xsudo = ensure_xsudo();
     let sw = Instant::now();
-    let ok = match &min_sudo {
-        Some(m) => run_cmd_opts(
+    let (ok, code) = match &xsudo {
+        Some(m) => run_cmd_opts_code(
             m,
             &format!(
                 "-TI -P {} {}",
@@ -258,27 +314,42 @@ pub fn run_as_ti_timeout(file_name: &str, arguments: &str, timeout_ms: u32) -> b
             &CmdOptions {
                 timeout_ms: Some(timeout_ms),
                 suppress_log: true,
+                accepted_exit_codes: o.accepted_exit_codes,
                 ..Default::default()
             },
         ),
-        None => false,
+        None => (false, None),
     };
     let ms = sw.elapsed().as_millis();
-    log::log(&format!(
-        "[TI]  -> {} in {} ms",
-        if ok { "ok" } else { "FAILED" },
-        ms
-    ));
-    if !ok {
-        session_log::operation_failed(
-            "elevated command",
-            &describe_command(file_name, &child_arguments),
-        );
+    let ignored = !ok && o.best_effort && code.is_some_and(|c| !is_xsudo_own_exit_code(c));
+    if ignored {
+        log::log(&format!(
+            "[TI]  -> exit {} in {} ms (best effort, not counted as a failure)",
+            code.unwrap_or(0),
+            ms
+        ));
+    } else {
+        log::log(&format!(
+            "[TI]  -> {} in {} ms{}",
+            if ok { "ok" } else { "FAILED" },
+            ms,
+            if ok {
+                String::new()
+            } else {
+                ti_failure_suffix(code)
+            }
+        ));
+        if !ok {
+            session_log::operation_failed(
+                "elevated command",
+                &describe_command(file_name, &child_arguments),
+            );
+        }
     }
     if ms >= 1000 {
         log::perf(&format!("TI {}", file_name_of(file_name)), ms);
     }
-    ok
+    ok || ignored
 }
 
 pub fn run_as_ti_renamed(file_name: &str, arguments: &str) -> bool {
@@ -331,12 +402,12 @@ pub fn run_as_ti_output_timeout(
     timeout_ms: u32,
 ) -> (i32, String) {
     let arguments = ensure_hidden_powershell_arguments(file_name, arguments);
-    let min_sudo = match ensure_min_sudo() {
+    let xsudo = match ensure_xsudo() {
         Some(m) => m,
         None => {
             return (
                 -1,
-                "MinSudo could not be loaded from the protected runtime directory".to_string(),
+                "XSudo could not be loaded from the protected runtime directory".to_string(),
             )
         }
     };
@@ -365,7 +436,7 @@ pub fn run_as_ti_output_timeout(
             quote_command_argument("powershell.exe"),
             quote_command_argument(&script_path)
         );
-        let mut sp = match spawn_hidden(&min_sudo, &args, false) {
+        let mut sp = match spawn_hidden(&xsudo, &args, false) {
             Ok(s) => s,
             Err(e) => return (-1, io_message(&e)),
         };
@@ -469,4 +540,29 @@ exit $code",
         out = escape_powershell_literal(output_path),
         exit = escape_powershell_literal(exit_code_path),
     )
+}
+
+#[cfg(test)]
+mod ti_exit_code_tests {
+    use super::{is_xsudo_own_exit_code, ti_failure_suffix};
+
+    #[test]
+    fn own_codes_are_the_reserved_range() {
+        assert!(!is_xsudo_own_exit_code(0x5853_0000));
+        assert!(is_xsudo_own_exit_code(0x5853_0001));
+        assert!(is_xsudo_own_exit_code(0x5853_0005));
+        assert!(!is_xsudo_own_exit_code(0x5853_0006));
+        assert!(!is_xsudo_own_exit_code(1056));
+    }
+
+    #[test]
+    fn failure_suffix_names_the_code() {
+        assert_eq!(ti_failure_suffix(None), "");
+        assert_eq!(ti_failure_suffix(Some(0)), "");
+        assert_eq!(ti_failure_suffix(Some(1056)), " (exit 1056)");
+        assert_eq!(
+            ti_failure_suffix(Some(0x5853_0002)),
+            " (launcher exit 0x58530002)"
+        );
+    }
 }

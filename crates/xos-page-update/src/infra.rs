@@ -16,7 +16,7 @@ use xos_core::log;
 use xos_sys::{
     config_service_sc, get_service_delayed_auto_start, get_service_start_type,
     get_windows_build_number, ops, reg_delete_key, reg_delete_value, reg_get_dword, reg_get_string,
-    reg_set_dword, reg_set_string, run_as_ti_output_timeout, start_service, stop_service,
+    reg_set_dword, reg_set_string, run_as_ti_output_timeout, start_service_best_effort, stop_service_best_effort,
 };
 use xos_winupdate::{hard_disable, legacy, service_guard};
 
@@ -458,7 +458,7 @@ fn stop_update_services(allow_state_retry: bool) -> Result<bool> {
             Some(s) => s,
         };
         if status != SvcStatus::StopPending {
-            ok &= stop_service(service);
+            ok &= stop_service_best_effort(service);
         }
         if !wait_for_service_state(service, false)? {
             let prefix = if allow_state_retry {
@@ -551,7 +551,7 @@ fn restore_update_services() -> Result<bool> {
         if !update_service_exists(service)? || is_service_running(service)? {
             continue;
         }
-        start_service(service);
+        start_service_best_effort(service);
         if !wait_for_service_state(service, true)? {
             log::log(&format!("[ERROR] Update service did not start: {service}"));
             ok = false;

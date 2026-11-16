@@ -546,7 +546,7 @@ fn print_enable() -> Result<()> {
 fn print_disable() -> Result<()> {
     require_service("Spooler", "Printing")?;
     let mut failed = false;
-    xos_sys::stop_service("Spooler");
+    xos_sys::stop_service_best_effort("Spooler");
     mark_failure_if_present(
         "Spooler",
         || xos_sys::config_service_sc("Spooler", "disabled"),
