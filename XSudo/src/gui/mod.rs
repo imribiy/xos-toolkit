@@ -430,7 +430,7 @@ unsafe fn build_menu() -> HMENU {
     append(
         options,
         IDM_SHELL,
-        "Add '&Run as TrustedInstaller' to the Explorer right-click menu",
+        "Add the &TrustedInstaller entries to the Explorer right-click menu",
     );
     let help = CreatePopupMenu();
     append(help, IDM_USAGE, "&Command line usage");
@@ -888,42 +888,30 @@ fn run_builtin(file: &str) {
 fn toggle_shell_menu() {
     let exe = launch::self_path();
     let owner = ui().main;
-    if shellmenu::is_enabled(&exe) {
-        match shellmenu::disable() {
-            Ok(()) => set_status("The Explorer right-click entry was removed."),
-            Err(e) => {
-                set_status("The Explorer right-click entry could not be removed.");
-                let f = launch::Failure {
-                    code: crate::exitcode::ERR_CHILD,
-                    win32: e,
-                    summary: "The Explorer right-click entry could not be removed.".into(),
-                };
-                launch::message_box(
-                    owner,
-                    &launch::failure_text(&f, &launch::windows_error_text(e)),
-                    MB_ICONERROR,
-                );
-            }
-        }
-    } else {
-        match shellmenu::enable(&exe) {
-            Ok(()) => set_status(
-                "Explorer now shows 'Run as TrustedInstaller' for .exe, .bat, .cmd and .ps1 files.",
-            ),
-            Err(e) => {
-                let _ = shellmenu::disable();
-                set_status("The Explorer right-click entry could not be added.");
-                let f = launch::Failure {
-                    code: crate::exitcode::ERR_CHILD,
-                    win32: e,
-                    summary: "The Explorer right-click entry could not be added.".into(),
-                };
-                launch::message_box(
-                    owner,
-                    &launch::failure_text(&f, &launch::windows_error_text(e)),
-                    MB_ICONERROR,
-                );
-            }
+    let on = !shellmenu::is_enabled(&exe);
+    match shellmenu::apply(on, &exe) {
+        Ok(()) => set_status(if on {
+            "Explorer now shows Run, Import and Open as TrustedInstaller."
+        } else {
+            shellmenu::REMOVED
+        }),
+        Err(e) => {
+            let summary = if on {
+                shellmenu::ADD_FAILED
+            } else {
+                shellmenu::REMOVE_FAILED
+            };
+            set_status(summary);
+            let f = launch::Failure {
+                code: crate::exitcode::ERR_CHILD,
+                win32: e,
+                summary: summary.into(),
+            };
+            launch::message_box(
+                owner,
+                &launch::failure_text(&f, &launch::windows_error_text(e)),
+                MB_ICONERROR,
+            );
         }
     }
 }

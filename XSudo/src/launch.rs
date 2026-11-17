@@ -149,7 +149,7 @@ pub struct Failure {
 }
 
 impl Failure {
-    fn new(code: u32, win32: u32, summary: impl Into<String>) -> Failure {
+    pub fn new(code: u32, win32: u32, summary: impl Into<String>) -> Failure {
         Failure {
             code,
             win32,
@@ -285,7 +285,7 @@ pub fn resolve_start_dir(start_dir: &str, resolved_file: &str) -> Result<String,
     }
 }
 
-fn spawn_detached(
+pub(crate) fn spawn_detached(
     token: HANDLE,
     cmdline: &mut [u16],
     workdir: &[u16],
@@ -322,24 +322,21 @@ fn spawn_detached(
     }
 }
 
-pub struct Started {
-    pub pid: u32,
-    pub file: String,
+pub struct TiSession {
+    pub primary: sys::Handle,
+    _source: sys::Handle,
+    _winlogon: sys::Handle,
+    _guard: Option<sys::Impersonation>,
 }
 
-pub fn launch(file: &str, params: &str, start_dir: &str, show: Show) -> Result<Started, Failure> {
-    let resolved = resolve_file(file)?;
-    let dir = resolve_start_dir(start_dir, &resolved)?;
-    let expanded_params = expand_env(params);
-    let line = command_line(&resolved, &expanded_params, &system_dir());
-    let mut cmdbuf = sys::wide(&line);
-    let wd = sys::wide(&dir);
+impl Drop for TiSession {
+    fn drop(&mut self) {
+        self._guard.take();
+    }
+}
 
-    let caller = sys::caller_token_query();
-    let env = caller.as_ref().and_then(|c| sys::make_env_block(c.0));
-    let envptr = env.as_ref().map(|e| e.0 as *const c_void).unwrap_or(null());
+pub fn trustedinstaller_session() -> Result<TiSession, Failure> {
     let session = sys::caller_session_id();
-
     let identity = |win32: u32| {
         Failure::new(
             ERR_IDENTITY,
@@ -359,8 +356,34 @@ pub fn launch(file: &str, params: &str, start_dir: &str, show: Show) -> Result<S
     if !sys::enable_all_privileges(primary.0) {
         return Err(identity(sys::last_error()));
     }
-    let result = spawn_detached(primary.0, &mut cmdbuf, &wd, envptr, show.sw());
-    drop(guard);
+    Ok(TiSession {
+        primary,
+        _source: src,
+        _winlogon: winlogon,
+        _guard: guard,
+    })
+}
+
+pub struct Started {
+    pub pid: u32,
+    pub file: String,
+}
+
+pub fn launch(file: &str, params: &str, start_dir: &str, show: Show) -> Result<Started, Failure> {
+    let resolved = resolve_file(file)?;
+    let dir = resolve_start_dir(start_dir, &resolved)?;
+    let expanded_params = expand_env(params);
+    let line = command_line(&resolved, &expanded_params, &system_dir());
+    let mut cmdbuf = sys::wide(&line);
+    let wd = sys::wide(&dir);
+
+    let caller = sys::caller_token_query();
+    let env = caller.as_ref().and_then(|c| sys::make_env_block(c.0));
+    let envptr = env.as_ref().map(|e| e.0 as *const c_void).unwrap_or(null());
+
+    let ti = trustedinstaller_session()?;
+    let result = spawn_detached(ti.primary.0, &mut cmdbuf, &wd, envptr, show.sw());
+    drop(ti);
 
     match result {
         Ok(pid) => Ok(Started {
@@ -449,6 +472,20 @@ fn exit(code: u32) -> ! {
     std::process::exit(as_process_code(code));
 }
 
+pub fn elevate_or_exit(raw: &[u16], tokens: &[cli::Token], tried: bool) {
+    if !sys::is_elevated() {
+        let tail = &raw[tokens[1].start..];
+        match relaunch_elevated(tail, tried) {
+            Elevation::Started => exit(0),
+            Elevation::Declined => exit(ERR_ELEVATION),
+            Elevation::Refused => {
+                message_box(null_mut(), NEEDS_ADMIN, MB_ICONERROR | MB_SETFOREGROUND);
+                exit(ERR_ELEVATION);
+            }
+        }
+    }
+}
+
 pub fn launch_switch(raw: &[u16]) -> ! {
     unsafe {
         FreeConsole();
@@ -467,17 +504,7 @@ pub fn launch_switch(raw: &[u16]) -> ! {
         );
         exit(ERR_USAGE);
     }
-    if !sys::is_elevated() {
-        let tail = &raw[tokens[1].start..];
-        match relaunch_elevated(tail, tried) {
-            Elevation::Started => exit(0),
-            Elevation::Declined => exit(ERR_ELEVATION),
-            Elevation::Refused => {
-                message_box(null_mut(), NEEDS_ADMIN, MB_ICONERROR | MB_SETFOREGROUND);
-                exit(ERR_ELEVATION);
-            }
-        }
-    }
+    elevate_or_exit(raw, &tokens, tried);
     let params = match tokens.get(3) {
         Some(t) => String::from_utf16_lossy(&cli::tail_slice(raw, t.start)),
         None => String::new(),

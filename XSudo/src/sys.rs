@@ -287,11 +287,15 @@ pub fn open_source_token(pid: u32) -> Option<Handle> {
 }
 
 pub fn token_user_is_system(token: HANDLE) -> bool {
+    token_user_sid(token).as_deref() == Some("S-1-5-18")
+}
+
+pub fn token_user_sid(token: HANDLE) -> Option<String> {
     unsafe {
         let mut needed = 0u32;
         GetTokenInformation(token, TokenUser, null_mut(), 0, &mut needed);
         if needed == 0 {
-            return false;
+            return None;
         }
         let mut buf = vec![0u8; needed as usize];
         if GetTokenInformation(
@@ -302,15 +306,15 @@ pub fn token_user_is_system(token: HANDLE) -> bool {
             &mut needed,
         ) == 0
         {
-            return false;
+            return None;
         }
         let sid = *(buf.as_ptr() as *const *mut c_void);
         if sid.is_null() {
-            return false;
+            return None;
         }
         let mut str_ptr: *mut u16 = null_mut();
         if ConvertSidToStringSidW(sid, &mut str_ptr) == 0 {
-            return false;
+            return None;
         }
         let mut len = 0usize;
         while *str_ptr.add(len) != 0 {
@@ -318,7 +322,7 @@ pub fn token_user_is_system(token: HANDLE) -> bool {
         }
         let s = String::from_utf16_lossy(core::slice::from_raw_parts(str_ptr, len));
         windows_sys::Win32::Foundation::LocalFree(str_ptr as *mut c_void);
-        s == "S-1-5-18"
+        Some(s)
     }
 }
 

@@ -16,6 +16,9 @@ the child and returns its real exit code.
 ```
 XSudo [options] [program] [arguments...]
 XSudo --Launch FILE
+XSudo --Import FILE
+XSudo --OpenFolder FOLDER
+XSudo --ContextMenu=On|Off
 XSudo
 ```
 
@@ -38,6 +41,9 @@ are passed to the child unchanged.
 | `--Privileged` | `-P` | Enable every privilege present in the token. |
 | `--WorkDir=PATH` | `-WD=PATH` | Set the child working directory. |
 | `--Launch FILE` | | Run FILE as TrustedInstaller in its own window and return at once (see below). |
+| `--Import FILE` | | Import a `.reg` file as TrustedInstaller and show the result (see below). |
+| `--OpenFolder FOLDER` | | Open FOLDER in an Explorer window that runs as TrustedInstaller (see below). |
+| `--ContextMenu=On` | `--ContextMenu=Off` | Add or remove the Explorer right-click entries (see below). |
 
 ## Exit codes
 
@@ -90,12 +96,32 @@ The list and the window position are saved per user in
 file starts with Command Prompt and Registry Editor as examples; a damaged file
 starts with an empty list.
 
-Options, "Add 'Run as TrustedInstaller' to the Explorer right-click menu", adds
-that entry for `.exe`, `.bat`, `.cmd` and `.ps1` files under
-`HKLM\SOFTWARE\Classes\<type>\shell\XSudoRunAsTI` (types `exefile`,
-`batfile`, `cmdfile`, `Microsoft.PowerShellScript.1`), with the command
-`"<path of this XSudo.exe>" --Launch "%1"`. It is off by default; turning it
-off deletes exactly those keys. The checkmark reads the registry.
+Options, "Add the TrustedInstaller entries to the Explorer right-click menu",
+turns the right-click entries below on or off, with the same code as
+`--ContextMenu`. The checkmark reads the registry.
+
+## Explorer right-click entries
+
+`XSudo --ContextMenu=On` (or the window's Options item) adds these entries, all
+under the key name `XSudoRunAsTI` in
+`HKLM\SOFTWARE\Classes\<type>\shell\XSudoRunAsTI`, each with the XSudo icon and
+the administrator shield:
+
+| Type | Entry | Command |
+| --- | --- | --- |
+| `exefile`, `batfile`, `cmdfile`, `Microsoft.PowerShellScript.1`, `mscfile` | Run as TrustedInstaller | `"<this XSudo.exe>" --Launch "%1"` |
+| `regfile` | Import as TrustedInstaller | `"<this XSudo.exe>" --Import "%1"` |
+| `Folder` (not the Recycle Bin) | Open as TrustedInstaller | `"<this XSudo.exe>" --OpenFolder "%V"` |
+
+The commands name the XSudo.exe that wrote them, so run the switch from the copy
+that stays installed. `--ContextMenu=Off` deletes exactly those keys. When
+XSudo had to create a type's `shell` key (or the type's key itself), it records
+that in the value `XSudoCreated` of its own key, and turning the entries off
+also removes that `shell` key (or type key) if it is then empty; keys that
+existed before are never removed. `--ContextMenu` must be the only argument and
+needs an elevated prompt; it prints one line and exits 0, or prints an error
+and exits with `0x58530001` (bad value), `0x58530002` (not elevated) or
+`0x58530004` (a registry write or delete failed).
 
 ## --Launch
 
@@ -104,6 +130,35 @@ window's Run does, with FILE's folder as the start directory, and returns at
 once with exit code 0. Errors are shown in a message box and returned as the
 reserved codes above. Unelevated, it restarts itself through the UAC prompt.
 Anything after FILE is passed to it as parameters.
+
+## --Import
+
+`XSudo --Import FILE` (only as the first argument) imports the `.reg` file with
+`reg.exe import` as TrustedInstaller, waits for it (at most five minutes) and
+shows a message box saying it was imported, or the error with reg.exe's own
+message and exit code. While reg.exe runs, the SYSTEM profile key
+`HKEY_USERS\S-1-5-18` points at the signed-in user's profile, so
+`HKEY_CURRENT_USER` lines in the file reach that user, as they did with the
+TrustedInstaller entries XOS shipped before; the link is put back to
+`\Registry\User\.Default` as soon as reg.exe exits. Unelevated, it restarts
+itself through the UAC prompt.
+
+## --OpenFolder
+
+`XSudo --OpenFolder FOLDER` (only as the first argument) opens FOLDER in a new
+Explorer window that runs as TrustedInstaller. Explorer's folder windows
+normally always run as the signed-in user, because the registration
+`HKLM\SOFTWARE\Classes\AppID\{CDCBCFCA-3CDC-436f-A4E2-0E02075250C2}` has
+`RunAs` = `Interactive User`. XSudo, as TrustedInstaller, empties that value
+and points `HKEY_USERS\S-1-5-18` at the signed-in user's profile (so the
+window uses that user's Explorer settings), starts `explorer.exe FOLDER` as
+TrustedInstaller, waits until the new TrustedInstaller folder window is shown
+(at most 30 seconds), and then puts both values back (`Interactive User` and
+`\Registry\User\.Default`). The restore does not wait for that Explorer to
+exit, so an Explorer process that stays alive after its window is closed
+changes nothing. One `XSudo.ShellState` lock serialises `--OpenFolder` and
+`--Import`. A drive root such as `"C:\"` is accepted although its trailing
+backslash escapes the closing quote. Errors are shown in a message box.
 
 ## Build
 
@@ -117,6 +172,7 @@ The release binary links the CRT statically and embeds an application manifest
 aware), the icon, the dialog templates and a version resource. The window uses
 plain Win32 through `windows-sys`; there is no GUI framework. `cargo test`
 runs the unit tests (command-line parser, ini reader and writer, command
-building, environment expansion, right-click command).
+building, environment expansion, right-click entries and their commands, the
+`--ContextMenu` switch, folder and import arguments, restore values).
 
 Requires Rust stable with the MSVC toolchain.

@@ -5,16 +5,19 @@ mod elevate;
 mod exitcode;
 mod gui;
 mod launch;
+mod reg;
 mod run;
 mod settings;
 mod shellmenu;
 mod sys;
+mod verbs;
 
 use cli::Command;
 use cli::Mode;
 use cli::Outcome;
 use cli::Plan;
 use exitcode::as_process_code;
+use exitcode::ERR_CHILD;
 use exitcode::ERR_ELEVATION;
 use exitcode::ERR_USAGE;
 
@@ -36,6 +39,9 @@ Run a command with elevated identity in the current console.
 Usage:
   XSudo [options] [program] [arguments...]
   XSudo --Launch FILE
+  XSudo --Import FILE
+  XSudo --OpenFolder FOLDER
+  XSudo --ContextMenu=On|Off
   XSudo
 
 If options but no program are given, cmd.exe is started. With no arguments at
@@ -54,6 +60,14 @@ Options (names are case insensitive; -, --, and / all work as prefixes):
   --Launch FILE             Run FILE as TrustedInstaller in its own window and
                             return at once (first argument only; .bat, .cmd,
                             .ps1 and .msc files run through their host).
+  --Import FILE             Import the .reg FILE as TrustedInstaller and show
+                            the result in a message box (first argument only).
+  --OpenFolder FOLDER       Open FOLDER in an Explorer window that runs as
+                            TrustedInstaller (first argument only).
+  --ContextMenu=On|Off      Add or remove the Explorer right-click entries Run,
+                            Import and Open as TrustedInstaller, which call
+                            this XSudo.exe (first argument only; needs an
+                            elevated prompt).
 
 With no mode option the command runs as Administrator. Options that appear
 after the program name are passed to the child unchanged.
@@ -100,6 +114,46 @@ fn exit(code: u32) -> ! {
     std::process::exit(as_process_code(code));
 }
 
+fn context_menu(switch: shellmenu::Switch, extra: bool) -> ! {
+    let on = match switch {
+        shellmenu::Switch::On if !extra => true,
+        shellmenu::Switch::Off if !extra => false,
+        _ => {
+            print_error("Invalid command line. Use --Help for usage.");
+            exit(ERR_USAGE);
+        }
+    };
+    if !sys::is_elevated() {
+        print_error("--ContextMenu needs administrator rights. Run it from an elevated prompt.");
+        exit(ERR_ELEVATION);
+    }
+    match shellmenu::apply(on, &launch::self_path()) {
+        Ok(()) => {
+            println!(
+                "{}",
+                if on {
+                    shellmenu::ADDED
+                } else {
+                    shellmenu::REMOVED
+                }
+            );
+            exit(0);
+        }
+        Err(e) => {
+            print_error(&format!(
+                "{} Windows error {e}: {}",
+                if on {
+                    shellmenu::ADD_FAILED
+                } else {
+                    shellmenu::REMOVE_FAILED
+                },
+                launch::windows_error_text(e)
+            ));
+            exit(ERR_CHILD);
+        }
+    }
+}
+
 fn main() {
     let raw = sys::get_command_line();
     let tokens = cli::tokenize(&raw);
@@ -108,6 +162,15 @@ fn main() {
     }
     if launch::is_launch_switch(&tokens[1].text) {
         launch::launch_switch(&raw);
+    }
+    if verbs::is_import_switch(&tokens[1].text) {
+        verbs::import_switch(&raw);
+    }
+    if verbs::is_open_folder_switch(&tokens[1].text) {
+        verbs::open_folder_switch(&raw);
+    }
+    if let Some(switch) = shellmenu::parse_switch(&tokens[1].text) {
+        context_menu(switch, tokens.len() > 2);
     }
     sys::install_passthrough_ctrl_handler();
     let (cmd, was_elevated_stage) = elevate::handle_elevated_stage(&raw);

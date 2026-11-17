@@ -2333,12 +2333,40 @@ pub fn restore_deterministic_xos_leftovers() -> bool {
     ok
 }
 
-pub const XSUDO_SHELL_CLASSES: [&str; 4] = [
+pub const XSUDO_SHELL_CLASSES: [&str; 7] = [
     "exefile",
     "batfile",
     "cmdfile",
     "Microsoft.PowerShellScript.1",
+    "mscfile",
+    "regfile",
+    "Folder",
 ];
+
+pub const XSUDO_CREATED_VALUE: &str = "XSudoCreated";
+
+pub fn xsudo_created_parents(class: &str, marker: Option<&str>) -> Vec<String> {
+    let shell = format!(r"HKLM\SOFTWARE\Classes\{class}\shell");
+    match marker.map(|m| m.trim().to_ascii_lowercase()) {
+        Some(m) if m == "class" => vec![shell, format!(r"HKLM\SOFTWARE\Classes\{class}")],
+        Some(m) if m == "shell" => vec![shell],
+        _ => Vec::new(),
+    }
+}
+
+fn hklm_key_is_empty(path: &str) -> bool {
+    let sub = match path.split_once('\\') {
+        Some((_, sub)) => sub,
+        None => return false,
+    };
+    match RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(sub, KEY_READ) {
+        Ok(key) => key
+            .query_info()
+            .map(|i| i.sub_keys == 0 && i.values == 0)
+            .unwrap_or(false),
+        Err(_) => false,
+    }
+}
 
 pub struct XsudoInstallPaths {
     pub dir: std::path::PathBuf,
@@ -2409,11 +2437,29 @@ pub fn remove_xsudo_install() -> bool {
             }
         }
     }
-    for key in &paths.shell_keys {
-        if xos_sys::reg_key_exists(key) {
-            ok &= uninstall_reg_del_key(key);
-        } else {
+    for (class, key) in XSUDO_SHELL_CLASSES.iter().zip(paths.shell_keys.iter()) {
+        if !xos_sys::reg_key_exists(key) {
             uninstall_log(&format!("  DELKEY: not found  -- {key}"));
+            continue;
+        }
+        let marker = xos_sys::reg_get_string(key, XSUDO_CREATED_VALUE);
+        let removed = uninstall_reg_del_key(key);
+        ok &= removed;
+        if !removed {
+            continue;
+        }
+        for parent in xsudo_created_parents(class, marker.as_deref()) {
+            if hklm_key_is_empty(&parent) {
+                uninstall_log(&format!(
+                    "  {parent} was created by XSudo and is empty, removing it"
+                ));
+                ok &= uninstall_reg_del_key(&parent);
+            } else {
+                uninstall_log(&format!(
+                    "  {parent} was created by XSudo but is not empty or not present, left unchanged"
+                ));
+                break;
+            }
         }
     }
     uninstall_log(r"  The XSudo window's saved list (%APPDATA%\XSudo) is left to the user");
@@ -2870,6 +2916,27 @@ mod tests {
                 r"HKLM\SOFTWARE\Classes\batfile\shell\XSudoRunAsTI",
                 r"HKLM\SOFTWARE\Classes\cmdfile\shell\XSudoRunAsTI",
                 r"HKLM\SOFTWARE\Classes\Microsoft.PowerShellScript.1\shell\XSudoRunAsTI",
+                r"HKLM\SOFTWARE\Classes\mscfile\shell\XSudoRunAsTI",
+                r"HKLM\SOFTWARE\Classes\regfile\shell\XSudoRunAsTI",
+                r"HKLM\SOFTWARE\Classes\Folder\shell\XSudoRunAsTI",
+            ]
+        );
+    }
+
+    #[test]
+    fn xsudo_removes_only_the_parents_it_recorded() {
+        let c = "Microsoft.PowerShellScript.1";
+        assert!(xsudo_created_parents(c, None).is_empty());
+        assert!(xsudo_created_parents(c, Some("")).is_empty());
+        assert_eq!(
+            xsudo_created_parents(c, Some("shell")),
+            [r"HKLM\SOFTWARE\Classes\Microsoft.PowerShellScript.1\shell"]
+        );
+        assert_eq!(
+            xsudo_created_parents(c, Some("CLASS")),
+            [
+                r"HKLM\SOFTWARE\Classes\Microsoft.PowerShellScript.1\shell",
+                r"HKLM\SOFTWARE\Classes\Microsoft.PowerShellScript.1",
             ]
         );
     }

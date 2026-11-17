@@ -8,7 +8,7 @@ The Toolkit is built for [XOS](https://github.com/imribiy/xos-playbook). It runs
 
 Every [XOS playbook release](https://github.com/imribiy/xos-playbook/releases) installs the Toolkit. To install or update it on its own, download `XOS-Toolkit-Setup-<version>.exe` from [Releases](https://github.com/imribiy/xos-toolkit/releases): the latest stable build, or the newest *Pre-release* for the developer beta. Report problems in [Issues](https://github.com/imribiy/xos-toolkit/issues); search the existing ones first.
 
-The installer upgrades an earlier XOS Toolkit in place, including the old C# versions. The app asks for elevation on launch. XOS-CpuService is installed next to the Toolkit; turn it on from the CPU Affinity page.
+The installer upgrades an earlier XOS Toolkit in place, including the old C# versions. The app asks for elevation on launch. XOS-CpuService is installed next to the Toolkit; turn it on from the CPU Affinity page. The installer also puts XSudo in `%ProgramFiles%\XSudo` with an "XSudo" Start menu shortcut: a window that runs programs as TrustedInstaller, with an optional "Run as TrustedInstaller" Explorer right-click entry.
 
 ## Requirements
 
@@ -46,7 +46,7 @@ Rules are stored in `%AppData%\XOS Toolkit\CpuRules.json`. The service log is `%
 - `crates/xos-page-*`: one crate per Toolkit page.
 - `crates/xos-core`, `xos-sys`, `xos-helpers`, `xos-cpu`, `xos-winupdate`, `xos-uninstall`: shared logic.
 - `resources/`: data files embedded in the app (power plan, service and registry defaults, NVIDIA profiles, Open-Shell skins).
-- `XSudo/`: the elevation helper (Rust), embedded in the app.
+- `XSudo/`: the elevation helper (Rust), embedded in the app and installed on its own by the installer.
 - `installer.iss`: the Inno Setup installer script.
 
 ## Build
@@ -64,7 +64,7 @@ These files are not in the repository. The app embeds them at compile time, so a
 | `nvidiaProfileInspector.exe`, `nvidiaProfileInspector.exe.config`, `Reference.xml` | [Nvidia Profile Inspector](https://github.com/Orbmu2k/nvidiaProfileInspector) | `resources/Nvidia Profile Inspector/` |
 | `chocolatey-2.7.1.0.msi` (installer only) | [Chocolatey](https://chocolatey.org/install) | `resources/` |
 
-The app also embeds `resources/XSudo.exe`, the elevation helper. It is part of XOS and its source is in `XSudo/`. Build it first with `XSudo\build.ps1 -Install`, which compiles it and copies it to `resources\XSudo.exe`.
+The app also embeds `resources/XSudo.exe`, the elevation helper, and the installer installs it. It is part of XOS and its source is in `XSudo/`. Build it first with `XSudo\build.ps1 -Install`, which compiles it and copies it to `resources\XSudo.exe`.
 
 Then, from the repository root:
 
@@ -77,7 +77,7 @@ The executables land in `target\release`, the installer at `target\installer\XOS
 
 ## Uninstall
 
-Uninstalling XOS Toolkit removes the app and the `XOS CPU Service` task. It does not undo settings changed by the Toolkit or by XOS. Use the restore controls on each page, or **Troubleshooting > Uninstall XOS**, to return XOS-changed settings to Windows defaults. That does not restore your previous configuration, and removed Store apps have to be reinstalled by hand.
+Uninstalling XOS Toolkit removes the app, the `XOS CPU Service` task, XSudo with its Start menu shortcut and its right-click entry. Your saved XSudo list in `%AppData%\XSudo` is kept. It does not undo settings changed by the Toolkit or by XOS. Use the restore controls on each page, or **Troubleshooting > Uninstall XOS**, to return XOS-changed settings to Windows defaults. That does not restore your previous configuration, and removed Store apps have to be reinstalled by hand.
 
 The Toolkit writes to services, drivers, scheduled tasks and the registry. Use it on a system you can reinstall if something goes wrong.
 
