@@ -8,7 +8,7 @@ The Toolkit is built for [XOS](https://github.com/imribiy/xos-playbook). It runs
 
 Every [XOS playbook release](https://github.com/imribiy/xos-playbook/releases) installs the Toolkit. To install or update it on its own, download `XOS-Toolkit-Setup-<version>.exe` from [Releases](https://github.com/imribiy/xos-toolkit/releases): the latest stable build, or the newest *Pre-release* for the developer beta. Report problems in [Issues](https://github.com/imribiy/xos-toolkit/issues); search the existing ones first.
 
-The installer upgrades an earlier XOS Toolkit in place, including the old C# versions. The app asks for elevation on launch. XOS-CpuService is installed next to the Toolkit; turn it on from the CPU Affinity page. The installer also puts XSudo in `%ProgramFiles%\XSudo` with an "XSudo" Start menu shortcut: a window that runs programs as TrustedInstaller, with an optional "Run as TrustedInstaller" Explorer right-click entry.
+The installer upgrades an earlier XOS Toolkit in place, including the old C# versions. The app asks for elevation on launch. XOS-CpuService is installed next to the Toolkit; turn it on from the CPU Affinity page. The installer also puts XSudo in `%ProgramFiles%\XSudo` with an "XSudo" Start menu shortcut: a window that runs programs as TrustedInstaller. Its Explorer right-click entries (Run, Import and Open as TrustedInstaller) are off on a Toolkit-only install; turn them on in XSudo's Options menu. The XOS playbook turns them on.
 
 ## Requirements
 
@@ -20,7 +20,7 @@ The installer upgrades an earlier XOS Toolkit in place, including the old C# ver
 Most items show their current state and have their own apply, enable, disable or restore control. You can undo one change without resetting the rest.
 
 - **System:** Defender, UAC, notifications, power savings, the XOS power plan, hibernation, virtualization (VBS/HVCI), Hyper-V, RDP, Windows Search and service grouping.
-- **Visuals:** themes, Alt-Tab style, Widgets, shell folder entries, the power plan context menu, Open-Shell and file security prompts.
+- **Visuals:** themes, Alt-Tab style, Widgets, shell folder entries, the power plan context menu, Open-Shell with the XOS skin, and file security prompts.
 - **Gaming:** Game Bar, fullscreen and windowed-game optimizations, CPU/GPU priorities, hardware-accelerated GPU scheduling, VRR, Auto HDR, overlays, and Nvidia/AMD GPU tweaks.
 - **CPU affinity:** per-process CPU Set or affinity rules through `XOS-CpuService`, with presets for hybrid and multi-CCD CPUs.
 - **Network and peripherals:** Wi-Fi, Bluetooth, VPN, adapter tweaks, Edge auto-install, WebView2 install/removal, USB power saving, printing, serial ports and clipboard features.
@@ -77,7 +77,7 @@ The executables land in `target\release`, the installer at `target\installer\XOS
 
 ## Uninstall
 
-Uninstalling XOS Toolkit removes the app, the `XOS CPU Service` task, XSudo with its Start menu shortcut and its right-click entry. Your saved XSudo list in `%AppData%\XSudo` is kept. It does not undo settings changed by the Toolkit or by XOS. Use the restore controls on each page, or **Troubleshooting > Uninstall XOS**, to return XOS-changed settings to Windows defaults. That does not restore your previous configuration, and removed Store apps have to be reinstalled by hand.
+Uninstalling XOS Toolkit removes the app, the `XOS CPU Service` task, XSudo with its Start menu shortcut and its right-click entries. Your saved XSudo list in `%AppData%\XSudo` is kept. It does not undo settings changed by the Toolkit or by XOS. Use the restore controls on each page, or **Troubleshooting > Uninstall XOS**, to return XOS-changed settings to Windows defaults. That does not restore your previous configuration, and removed Store apps have to be reinstalled by hand.
 
 The Toolkit writes to services, drivers, scheduled tasks and the registry. Use it on a system you can reinstall if something goes wrong.
 
