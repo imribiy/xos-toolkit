@@ -45,7 +45,7 @@ Rules are stored in `%AppData%\XOS Toolkit\CpuRules.json`. The service log is `%
 - `crates/xos-cpuservice`: the background CPU rule service.
 - `crates/xos-page-*`: one crate per Toolkit page.
 - `crates/xos-core`, `xos-sys`, `xos-helpers`, `xos-cpu`, `xos-winupdate`, `xos-uninstall`: shared logic.
-- `resources/`: data files embedded in the app (power plan, service and registry defaults, NVIDIA profiles, Open-Shell skins).
+- `resources/`: data files embedded in the app (power plan, service and registry defaults, NVIDIA profiles, the XOS Open-Shell skin).
 - `XSudo/`: the elevation helper (Rust), embedded in the app and installed on its own by the installer.
 - `installer.iss`: the Inno Setup installer script.
 
@@ -87,4 +87,4 @@ Copyright (c) 2026 XOS (imribiy). Licensed under [CC BY-NC-ND 4.0](LICENSE): you
 
 ## Credits
 
-The app bundles XSudo (part of XOS, source in `XSudo/`), Nvidia Profile Inspector by Orbmu2k, Chocolatey, `DefenderOFF.ps1` (based on LeanAndMean by AveYo, MIT) and the Open-Shell Fluent-Metro skins. Each third-party component keeps its own licence; XSudo is covered by the XOS license.
+The app bundles XSudo (part of XOS, source in `XSudo/`), Nvidia Profile Inspector by Orbmu2k, Chocolatey, `DefenderOFF.ps1` (based on LeanAndMean by AveYo, MIT) and the XOS skin for Open-Shell (part of XOS). Each third-party component keeps its own licence; XSudo and the XOS skin are covered by the XOS license.

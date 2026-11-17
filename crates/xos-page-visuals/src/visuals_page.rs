@@ -41,15 +41,14 @@ const VIDEOS_CLSIDS: [&str; 2] = [
 ];
 const START_MENU_HOST_EXE: &str = "StartMenuExperienceHost.exe";
 const START_MENU_HOST_OLD: &str = "StartMenuExperienceHost.exe.old";
-const FLUENT_METRO_API: &str =
-    "https://api.github.com/repos/bonzibudd/Fluent-Metro/releases/latest";
+const XOS_SKIN_NAME: &str = "XOS";
+const XOS_SKIN_FILE: &str = "XOS.skin7";
+static XOS_SKIN: &[u8] = include_bytes!("../../../resources/XOS.skin7");
 
 const WIDGETS_DESCRIPTION: &str = "Widgets on Windows 11 and News and interests on Windows 10, set through local Group Policy. Disable is the XOS default; while it is set, Windows shows these settings as managed by your organization. Enable removes the policy and returns them to the Windows default.";
 const WIDGETS_W10_HOME: &str = " Windows Home: News and interests is turned off through the per-user taskbar value, because Microsoft does not document local Group Policy for this edition.";
 const WIDGETS_HOME: &str = " Windows Home: Microsoft does not document local Group Policy for this edition, so the policy may not apply here.";
 const WIDGETS_APP_NOTE: &str = " On Windows 11, Enable also reinstalls the Widgets app (Windows Web Experience Pack) from the Microsoft Store when it is missing.";
-
-const FLUENT_SCRIPT: &str = "param($Url,$Zip,$Dir)\r\n$ErrorActionPreference = 'Stop'\r\n[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12\r\nAdd-Type -AssemblyName System.IO.Compression.FileSystem\r\n$wc = New-Object System.Net.WebClient\r\n$wc.Headers.Add('User-Agent', 'XOS-Toolkit')\r\n$wc.DownloadFile($Url, $Zip)\r\n$a = [System.IO.Compression.ZipFile]::OpenRead($Zip)\r\ntry {\r\n    foreach ($e in $a.Entries) {\r\n        $d = $null\r\n        if ($e.Name -ieq 'Fluent-Metro.skin') { $d = Join-Path $Dir 'Fluent-Metro.skin' }\r\n        elseif ($e.Name -ieq 'Fluent-Metro.skin7') { $d = Join-Path $Dir 'Fluent-Metro.skin7' }\r\n        if ($d -and -not (Test-Path -LiteralPath $d)) {\r\n            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($e, $d, $false)\r\n        }\r\n    }\r\n} finally { $a.Dispose() }\r\n";
 
 struct State {
     badges: HashMap<&'static str, Badge>,
@@ -137,17 +136,6 @@ pub fn widgets_app_line(installed: Option<bool>) -> &'static str {
         Some(false) => "Widgets app (Windows Web Experience Pack): not installed. Enable (Default) installs it from the Microsoft Store.",
         None => "Widgets app (Windows Web Experience Pack): could not be read.",
     }
-}
-
-pub fn zip_url_from_json(json: &str) -> Option<String> {
-    let re = regex::Regex::new(r#"(?i)"browser_download_url"\s*:\s*"([^"]+)""#).ok()?;
-    for c in re.captures_iter(json) {
-        let url = c.get(1)?.as_str();
-        if url.to_lowercase().ends_with(".zip") {
-            return Some(url.to_string());
-        }
-    }
-    None
 }
 
 fn folder_state(clsids: &[&str], path: &str) -> String {
@@ -323,65 +311,106 @@ fn enable_start_menu_host() -> bool {
     exe.exists()
 }
 
-fn unique_token() -> String {
-    let nanos = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_nanos())
-        .unwrap_or(0);
-    format!("{:x}{:x}", nanos, std::process::id())
+enum SkinWrite {
+    Unchanged,
+    Written,
+    WrittenPreviousHeld(&'static str),
 }
 
-fn fluent_metro_zip_url() -> Option<String> {
-    let json = xos_sys::http_get_string(FLUENT_METRO_API)?;
-    zip_url_from_json(&json)
+fn install_skin_file(skins_dir: &Path, bytes: &[u8]) -> std::io::Result<SkinWrite> {
+    let skin = skins_dir.join(XOS_SKIN_FILE);
+    if std::fs::read(&skin).map(|b| b == bytes).unwrap_or(false) {
+        return Ok(SkinWrite::Unchanged);
+    }
+    let fresh = skins_dir.join(format!("{XOS_SKIN_FILE}.new"));
+    let held = skins_dir.join(format!("{XOS_SKIN_FILE}.old"));
+    let written = std::fs::create_dir_all(skins_dir)
+        .and_then(|_| std::fs::write(&fresh, bytes))
+        .and_then(|_| match std::fs::remove_file(&skin) {
+            Ok(()) => Ok(()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(_) => {
+                let _ = std::fs::remove_file(&held);
+                std::fs::rename(&skin, &held)
+            }
+        })
+        .and_then(|_| std::fs::rename(&fresh, &skin));
+    let _ = std::fs::remove_file(&fresh);
+    written?;
+    if !held.exists() || std::fs::remove_file(&held).is_ok() {
+        return Ok(SkinWrite::Written);
+    }
+    let wide = windows::core::HSTRING::from(held.as_os_str());
+    let scheduled = unsafe {
+        windows::Win32::Storage::FileSystem::MoveFileExW(
+            &wide,
+            windows::core::PCWSTR::null(),
+            windows::Win32::Storage::FileSystem::MOVEFILE_DELAY_UNTIL_REBOOT,
+        )
+    };
+    Ok(SkinWrite::WrittenPreviousHeld(if scheduled.is_ok() {
+        "removed at the next restart"
+    } else {
+        "left as XOS.skin7.old"
+    }))
 }
 
-fn ensure_fluent_metro_skin() -> bool {
+fn ensure_xos_skin() -> bool {
     let skins_dir = Path::new(&program_files()).join(r"Open-Shell\Skins");
-    let token = unique_token();
-    let temp = std::env::temp_dir();
-    let zip = temp.join(format!("FluentMetro-{token}.zip"));
-    let script = temp.join(format!("FluentMetro-{token}.ps1"));
-    let result = (|| -> Option<bool> {
-        if !skins_dir.is_dir() {
-            std::fs::create_dir_all(&skins_dir).ok()?;
+    let skin = skins_dir.join(XOS_SKIN_FILE).display().to_string();
+    match install_skin_file(&skins_dir, XOS_SKIN) {
+        Ok(SkinWrite::Unchanged) => true,
+        Ok(SkinWrite::Written) => {
+            log::result(true, "XOS skin", &skin);
+            true
         }
-        let skin = skins_dir.join("Fluent-Metro.skin");
-        let skin7 = skins_dir.join("Fluent-Metro.skin7");
-        if skin.exists() && skin7.exists() {
-            return Some(true);
+        Ok(SkinWrite::WrittenPreviousHeld(what)) => {
+            log::result(
+                true,
+                "XOS skin",
+                &format!("{skin}; previous copy in use, {what}"),
+            );
+            true
         }
-        let url = fluent_metro_zip_url()?;
-        std::fs::write(&script, FLUENT_SCRIPT).ok()?;
-        let args = format!(
-            "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File \"{}\" -Url \"{}\" -Zip \"{}\" -Dir \"{}\"",
-            script.display(),
-            url,
-            zip.display(),
-            skins_dir.display()
-        );
-        xos_sys::run_cmd_opts(
-            "powershell.exe",
-            &args,
-            &CmdOptions {
-                timeout_ms: Some(180000),
-                suppress_log: true,
-                ..Default::default()
-            },
-        );
-        Some(skin.exists() && skin7.exists())
-    })();
-    let _ = std::fs::remove_file(&zip);
-    let _ = std::fs::remove_file(&script);
-    result.unwrap_or(false)
+        Err(e) => {
+            log::result(false, "XOS skin", &format!("{skin}: {e}"));
+            false
+        }
+    }
 }
 
-fn apply_fluent_metro_settings() {
+fn windows_uses_light_theme() -> bool {
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey_with_flags(
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+            KEY_READ,
+        )
+        .and_then(|k| k.get_value::<u32, _>("AppsUseLightTheme"))
+        .map(|v| v == 1)
+        .unwrap_or(false)
+}
+
+fn xos_skin_options(light: bool) -> Vec<String> {
+    vec![
+        format!("LIGHT={}", u8::from(light)),
+        "SMALL_ICONS=0".to_string(),
+        "LARGE_FONT=0".to_string(),
+    ]
+}
+
+fn apply_xos_skin_settings() {
     taskkill_accepting_128("StartMenu.exe");
     std::thread::sleep(std::time::Duration::from_millis(500));
     let settings_key = r"HKCU\Software\OpenShell\StartMenu\Settings";
     xos_sys::reg_set_string(settings_key, "MenuStyle", "Win7");
-    xos_sys::reg_set_string(settings_key, "SkinW7", "Fluent-Metro");
+    xos_sys::reg_set_string(settings_key, "SkinW7", XOS_SKIN_NAME);
+    let options = xos_skin_options(windows_uses_light_theme());
+    let written = RegKey::predef(HKEY_CURRENT_USER)
+        .create_subkey(r"Software\OpenShell\StartMenu\Settings")
+        .and_then(|(k, _)| k.set_value("SkinOptionsW7", &options));
+    if let Err(e) = written {
+        log::result(false, "Open Shell skin options", &e.to_string());
+    }
     xos_sys::reg_set_dword(settings_key, "SkipMetro", 1);
     xos_sys::reg_set_dword(r"HKCU\Software\OpenShell\StartMenu", "ShowedStyle2", 1);
     let exe = open_shell_menu_exe();
@@ -840,20 +869,16 @@ impl VisualsPage {
 
         xos_sys::reg_set_dword(r"HKLM\SOFTWARE\XOSToolkit", "OpenShellInstalledByXos", 1);
 
-        host.set_status("Preparing Fluent-Metro skin...");
-        let skin_ok = ensure_fluent_metro_skin();
+        host.set_status("Applying the XOS skin...");
+        let skin_ok = ensure_xos_skin();
         if skin_ok {
-            apply_fluent_metro_settings();
+            apply_xos_skin_settings();
         }
 
         self.refresh_states();
         self.set_overlay(host, None);
         app_state::require_reboot();
-        let skin_msg = if skin_ok {
-            " Fluent-Metro skin applied."
-        } else {
-            ""
-        };
+        let skin_msg = if skin_ok { " XOS skin applied." } else { "" };
         let host_msg = if start_menu_disabled {
             " The Windows Start Menu has been disabled."
         } else {
@@ -1159,13 +1184,42 @@ mod tests {
     }
 
     #[test]
-    fn zip_url_parse() {
-        let json = r#"{"assets":[{"browser_download_url": "https://x/a.txt"},{"browser_download_url":"https://x/Fluent-Metro.ZIP"}]}"#;
-        assert_eq!(
-            zip_url_from_json(json).as_deref(),
-            Some("https://x/Fluent-Metro.ZIP")
-        );
-        assert_eq!(zip_url_from_json("{}"), None);
+    fn skin_file_replaces_a_copy_open_shell_holds() {
+        use windows::Win32::Foundation::FreeLibrary;
+        use windows::Win32::System::LibraryLoader::{
+            LoadLibraryExW, LOAD_LIBRARY_AS_DATAFILE, LOAD_LIBRARY_AS_IMAGE_RESOURCE,
+        };
+        let dir = std::env::temp_dir().join(format!("xos-skin-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(matches!(
+            install_skin_file(&dir, XOS_SKIN),
+            Ok(SkinWrite::Written)
+        ));
+        assert!(matches!(
+            install_skin_file(&dir, XOS_SKIN),
+            Ok(SkinWrite::Unchanged)
+        ));
+        let skin = dir.join(XOS_SKIN_FILE);
+        let wide = windows::core::HSTRING::from(skin.as_os_str());
+        let flags = LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE;
+        let module = unsafe { LoadLibraryExW(&wide, None, flags) }.unwrap();
+        assert!(std::fs::remove_file(&skin).is_err());
+        let mut newer = XOS_SKIN.to_vec();
+        newer.push(0);
+        let result = install_skin_file(&dir, &newer);
+        assert!(matches!(result, Ok(SkinWrite::WrittenPreviousHeld(_))));
+        assert_eq!(std::fs::read(&skin).unwrap(), newer);
+        assert!(!dir.join(format!("{XOS_SKIN_FILE}.new")).exists());
+        unsafe { FreeLibrary(module) }.unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn xos_skin_embedded() {
+        assert_eq!(&XOS_SKIN[..2], b"MZ");
+        assert_eq!(xos_skin_options(true)[0], "LIGHT=1");
+        assert_eq!(xos_skin_options(false)[0], "LIGHT=0");
     }
 
     #[test]

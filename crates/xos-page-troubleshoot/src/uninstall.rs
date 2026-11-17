@@ -2386,7 +2386,7 @@ fn uninstall_open_shell() {
             continue;
         }
         let skin_dir = u::path_combine(&u::path_combine(&base_dir, "Open-Shell"), "Skins");
-        for f in ["Fluent-Metro.skin", "Fluent-Metro.skin7"] {
+        for f in ["XOS.skin7", "Fluent-Metro.skin", "Fluent-Metro.skin7"] {
             let path = u::path_combine(&skin_dir, f);
             if Path::new(&path).is_file() {
                 match std::fs::remove_file(&path) {

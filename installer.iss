@@ -2,7 +2,7 @@
 ; Same AppId, install folder and CPU service task as the earlier C# Toolkit installer, so an existing install upgrades in place.
 
 #define MyAppName "XOS Toolkit"
-#define MyAppVersion "0.3.5"
+#define MyAppVersion "0.4.0"
 #define MyAppPublisher "imribiy"
 #define MyAppExeName "XOS-Toolkit.exe"
 #define MyAppURL "https://github.com/imribiy/xos"
@@ -50,10 +50,8 @@ Source: "target\release\XOS-CpuService.exe"; DestDir: "{app}"; Flags: ignorevers
 Source: "{#XSudoExe}"; DestDir: "{commonpf64}\XSudo"; Flags: ignoreversion restartreplace uninsrestartdelete
 ; Chocolatey installer - dropped next to the toolkit so we can (re)install it any time
 Source: "{#SharedResources}\chocolatey-2.7.1.0.msi"; DestDir: "{app}\Bundled"; Flags: ignoreversion
-; Open-Shell Fluent Metro skin files are the offline source. The toolkit downloads the
-; release only if either bundled file is missing from the Open-Shell Skins folder.
-Source: "{#SharedResources}\Fluent-Metro.skin";  DestDir: "{commonpf}\Open-Shell\Skins"; Flags: ignoreversion uninsneveruninstall
-Source: "{#SharedResources}\Fluent-Metro.skin7"; DestDir: "{commonpf}\Open-Shell\Skins"; Flags: ignoreversion uninsneveruninstall
+; XOS skin for Open-Shell (built by Source\OpenShellSkin\build.py); the toolkit also embeds it.
+Source: "{#SharedResources}\XOS.skin7"; DestDir: "{commonpf}\Open-Shell\Skins"; Flags: ignoreversion uninsneveruninstall
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: startmenuicon
