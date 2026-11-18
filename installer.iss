@@ -31,6 +31,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 DisableWelcomePage=no
 CloseApplicationsFilterExcludes=XSudo.exe
+RestartApplications=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -62,6 +63,11 @@ Name: "{commonprograms}\XSudo"; Filename: "{commonpf64}\XSudo\XSudo.exe"; Workin
 [Code]
 const
   TesterUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8B4F1A2C-3169-4D5E-9F0A-316931693169}_is1';
+
+function RelaunchRequested: Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
 
 procedure DeleteNowOrAtRestart(const Path: String);
 begin
@@ -163,8 +169,10 @@ end;
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runascurrentuser
+Filename: "{app}\{#MyAppExeName}"; Flags: nowait runascurrentuser; Check: RelaunchRequested
 
 
 [UninstallDelete]
+Type: filesandordirs; Name: "{app}\Update"
 Type: dirifempty; Name: "{app}\Bundled"
 Type: dirifempty; Name: "{app}"

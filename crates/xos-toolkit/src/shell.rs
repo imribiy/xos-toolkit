@@ -244,6 +244,7 @@ impl Shell {
                 NavItemD { id: ss(n.id), label: ss(n.label), group: ss(group), active: n.id == current }
             })
             .collect();
+        ui.set_settings_active(current == "Settings");
         NAV_MODEL.with(|m| {
             let mut m = m.borrow_mut();
             let model = m.get_or_insert_with(|| {
@@ -682,7 +683,7 @@ impl Shell {
 
 pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
     let ui = AppWindow::new()?;
-    let dark = platform::system_prefers_dark();
+    let dark = crate::settings::theme().is_dark();
     ui.global::<Theme>().set_dark(dark);
     if platform::windows_build() < 22000 {
         ui.global::<Theme>().set_font(ss("Segoe UI"));
@@ -773,10 +774,12 @@ pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
     }
     {
         let s = shell.clone();
-        ui.on_set_dark(move |dark| {
-            if let Some(ui) = s.weak.upgrade() {
-                s.set_dark(dark, &ui);
-            }
+        ui.on_open_settings(move || s.navigate_to("Settings", None));
+    }
+    {
+        let s = shell.clone();
+        crate::settings::on_theme_changed(move |dark| {
+            s.ui(move |me, ui| me.set_dark(dark, &ui));
         });
     }
     {
@@ -927,6 +930,14 @@ pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
             if let Some(ui) = s.weak.upgrade() {
                 let dark = s.state.lock().unwrap().dark;
                 apply_title_bar(&ui, dark);
+            }
+            if !cfg!(debug_assertions) && !dev_screenshot {
+                let s3 = s.clone();
+                std::thread::spawn(move || {
+                    crate::updater::clean_staging();
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    crate::updater::startup_check(&s3.host());
+                });
             }
             if !crate::pages::is_xos() && !dev_screenshot {
                 let s2 = s.clone();

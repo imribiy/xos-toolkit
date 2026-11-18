@@ -5965,6 +5965,7 @@ dependencies = [
  "raw-window-handle",
  "regex",
  "rfd",
+ "serde_json",
  "slint",
  "slint-build",
  "windows",

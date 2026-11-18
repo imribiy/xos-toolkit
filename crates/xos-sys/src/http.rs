@@ -67,6 +67,10 @@ pub fn http_get_string(url: &str) -> Option<String> {
 }
 
 pub fn http_get_string_timeout(url: &str, timeout_ms: i32) -> Option<String> {
+    http_get_bytes_timeout(url, timeout_ms).map(|body| decode_text_with_bom(&body))
+}
+
+pub fn http_get_bytes_timeout(url: &str, timeout_ms: i32) -> Option<Vec<u8>> {
     let parsed = parse_url(url)?;
     unsafe {
         let agent = wide("XOSToolkit");
@@ -142,7 +146,7 @@ pub fn http_get_string_timeout(url: &str, timeout_ms: i32) -> Option<String> {
             }
             body.extend_from_slice(&chunk[..read as usize]);
         }
-        Some(decode_text_with_bom(&body))
+        Some(body)
     }
 }
 

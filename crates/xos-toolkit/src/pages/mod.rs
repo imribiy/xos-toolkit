@@ -2,6 +2,7 @@ use std::sync::Arc;
 use xos_core::host::{Host, Page};
 use xos_core::ui::*;
 
+pub mod settings;
 pub mod stability;
 
 pub struct Placeholder {
@@ -56,7 +57,8 @@ pub fn all() -> Vec<Arc<dyn Page>> {
     ported.extend(xos_page_config::pages());
     ported.extend(xos_page_troubleshoot::pages());
     ported.push(Arc::new(stability::StabilityPage::new()));
-    NAV.iter()
+    let mut pages: Vec<Arc<dyn Page>> = NAV
+        .iter()
         .map(|(id, label)| {
             ported
                 .iter()
@@ -64,7 +66,9 @@ pub fn all() -> Vec<Arc<dyn Page>> {
                 .cloned()
                 .unwrap_or_else(|| Arc::new(Placeholder { id, label }) as Arc<dyn Page>)
         })
-        .collect()
+        .collect();
+    pages.push(Arc::new(settings::SettingsPage::new()));
+    pages
 }
 
 pub fn pending_reboot_reason() -> Option<String> {

@@ -5,7 +5,9 @@ slint::include_modules!();
 mod bootstrap;
 mod pages;
 mod platform;
+mod settings;
 mod shell;
+mod updater;
 mod view;
 
 use xos_core::log;
