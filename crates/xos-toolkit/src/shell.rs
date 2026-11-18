@@ -43,7 +43,7 @@ pub struct Shell {
     weak: slint::Weak<AppWindow>,
     state: Mutex<State>,
     dialog_lock: Mutex<()>,
-    dialog_tx: Mutex<Option<(mpsc::Sender<(i32, bool)>, Buttons)>>,
+    dialog_tx: Mutex<Option<mpsc::Sender<(i32, bool)>>>,
     input_tx: Mutex<Option<mpsc::Sender<Option<String>>>>,
     pick: Mutex<PickState>,
     page_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
@@ -492,15 +492,32 @@ impl H {
             };
             return (fallback, false);
         }
+        let labels: Vec<&str> = match buttons {
+            Buttons::Ok => vec!["OK"],
+            Buttons::OkCancel => vec!["Cancel", "OK"],
+            Buttons::YesNo => vec!["No", "Yes"],
+            Buttons::YesNoCancel => vec!["Cancel", "No", "Yes"],
+        };
+        let (idx, muted) = self.show_buttons(message, title, &labels, icon, can_mute);
+        let result = match (buttons, idx) {
+            (Buttons::Ok, _) => DialogResult::Ok,
+            (Buttons::OkCancel, 1) => DialogResult::Ok,
+            (Buttons::OkCancel, _) => DialogResult::Cancel,
+            (Buttons::YesNo, 1) => DialogResult::Yes,
+            (Buttons::YesNo, -1) => DialogResult::Cancel,
+            (Buttons::YesNo, _) => DialogResult::No,
+            (Buttons::YesNoCancel, 2) => DialogResult::Yes,
+            (Buttons::YesNoCancel, 1) => DialogResult::No,
+            (Buttons::YesNoCancel, _) => DialogResult::Cancel,
+        };
+        (result, muted && can_mute)
+    }
+
+    fn show_buttons(&self, message: &str, title: &str, labels: &[&str], icon: Icon, can_mute: bool) -> (i32, bool) {
         let _guard = self.dialog_lock.lock().unwrap();
         let (tx, rx) = mpsc::channel();
-        *self.dialog_tx.lock().unwrap() = Some((tx, buttons));
-        let labels: Vec<SharedString> = match buttons {
-            Buttons::Ok => vec!["OK".into()],
-            Buttons::OkCancel => vec!["Cancel".into(), "OK".into()],
-            Buttons::YesNo => vec!["No".into(), "Yes".into()],
-            Buttons::YesNoCancel => vec!["Cancel".into(), "No".into(), "Yes".into()],
-        };
+        *self.dialog_tx.lock().unwrap() = Some(tx);
+        let labels: Vec<SharedString> = labels.iter().map(|l| ss(l)).collect();
         let icon_code = match icon {
             Icon::Information => 0,
             Icon::Warning => 1,
@@ -519,19 +536,7 @@ impl H {
             ui.set_dialog_visible(true);
             let _ = ui.window().show();
         });
-        let (idx, muted) = rx.recv().unwrap_or((-1, false));
-        let result = match (buttons, idx) {
-            (Buttons::Ok, _) => DialogResult::Ok,
-            (Buttons::OkCancel, 1) => DialogResult::Ok,
-            (Buttons::OkCancel, _) => DialogResult::Cancel,
-            (Buttons::YesNo, 1) => DialogResult::Yes,
-            (Buttons::YesNo, -1) => DialogResult::Cancel,
-            (Buttons::YesNo, _) => DialogResult::No,
-            (Buttons::YesNoCancel, 2) => DialogResult::Yes,
-            (Buttons::YesNoCancel, 1) => DialogResult::No,
-            (Buttons::YesNoCancel, _) => DialogResult::Cancel,
-        };
-        (result, muted && can_mute)
+        rx.recv().unwrap_or((-1, false))
     }
 }
 
@@ -556,6 +561,18 @@ impl Host for H {
             }
         }
         result
+    }
+
+    fn choose(&self, message: &str, title: &str, labels: &[&str], icon: Icon) -> Option<usize> {
+        if labels.is_empty() {
+            return None;
+        }
+        if self.on_ui_thread() {
+            log::log(&format!("[ERROR] dialog requested on UI thread: {title}"));
+            return None;
+        }
+        let (idx, _) = self.show_buttons(message, title, labels, icon, false);
+        usize::try_from(idx).ok().filter(|i| *i < labels.len())
     }
 
     fn input_text(&self, prompt: &str, title: &str, max_len: usize, ok_label: &str) -> Option<String> {
@@ -803,7 +820,7 @@ pub fn run(pages: Vec<Arc<dyn Page>>) -> Result<(), slint::PlatformError> {
                 muted = ui.get_dialog_muted();
                 ui.set_dialog_visible(false);
             }
-            if let Some((tx, _)) = s.dialog_tx.lock().unwrap().take() {
+            if let Some(tx) = s.dialog_tx.lock().unwrap().take() {
                 let _ = tx.send((i, muted));
             }
         });

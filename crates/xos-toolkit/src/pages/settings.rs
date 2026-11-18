@@ -104,15 +104,38 @@ impl Page for SettingsPage {
         if !st.status.is_empty() {
             updates = updates.controls(vec![Control::label(st.status.clone()).tone(st.status_tone).id("status")]);
         }
+        if let Some(v) = settings::skipped_version() {
+            updates = updates
+                .controls(vec![Control::muted(format!("Version {v} is skipped: the startup check does not ask about it. Check for updates still finds it."))])
+                .actions(vec![Control::button("unskip", "Stop skipping", BtnStyle::Action)]);
+        }
         PageModel::new("Settings", "Settings", "Appearance and updates for XOS Toolkit. Settings are saved for your Windows account.")
             .single_column()
             .max_width(820.0)
             .card(
-                Card::new("appearance", "Appearance", "Colour theme of the XOS Toolkit window.")
+                Card::new("appearance", "Appearance", "Colour theme and text size of the XOS Toolkit window.")
                     .full_width()
-                    .controls(vec![Control::label("Theme"), Control::combo("theme", options(&ThemeMode::LABELS), settings::theme().index()).width(220.0)]),
+                    .controls(vec![Control::label("Theme"), Control::combo("theme", options(&ThemeMode::LABELS), settings::theme().index()).width(220.0)])
+                    .controls(vec![
+                        Control::label("Text size"),
+                        Control::combo("textsize", settings::TEXT_SIZES.iter().map(|(_, l)| l.to_string()).collect(), settings::text_size_index()).width(220.0),
+                    ])
+                    .controls(vec![Control::muted(
+                        "Text size applies when XOS Toolkit starts. Above 100% the window keeps one scale on every monitor instead of following each monitor's display scale.",
+                    )]),
             )
             .card(updates)
+            .card({
+                let hidden = crate::platform::muted_dialog_count();
+                Card::new("warnings", "Warnings", "Warnings you hid with \"Do not show this again\" can be shown again.")
+                    .full_width()
+                    .controls(vec![Control::muted(match hidden {
+                        0 => "No warnings are hidden.".to_string(),
+                        1 => "1 warning is hidden.".to_string(),
+                        n => format!("{n} warnings are hidden."),
+                    })])
+                    .actions(vec![Control::button("reset", "Bring back hidden warnings", BtnStyle::Action).enabled(hidden > 0)])
+            })
     }
 
     fn handle(&self, host: &dyn Host, event: &Event) {
@@ -122,6 +145,34 @@ impl Page for SettingsPage {
                 settings::set_theme(mode);
                 settings::apply_theme(mode);
             }
+            ("appearance", "textsize", EventKind::Select(i)) => {
+                if let Some((percent, _)) = settings::TEXT_SIZES.get(*i as usize) {
+                    if *percent != settings::text_size() {
+                        settings::set_text_size(*percent);
+                        let choice = host.choose(
+                            "The new text size applies when XOS Toolkit starts again.",
+                            "Text size",
+                            &["Later", "Restart now"],
+                            Icon::Information,
+                        );
+                        if choice == Some(1) {
+                            if xos_core::app_state::is_busy() {
+                                host.warn("An operation is still running. Restart XOS Toolkit after it finishes.", "Text size");
+                            } else if let Err(e) = crate::restart_toolkit("text size changed") {
+                                host.error(&format!("XOS Toolkit could not restart.\n\n{e}"), "Text size");
+                            }
+                        }
+                    }
+                }
+            }
+            ("warnings", "reset", EventKind::Click) => match crate::platform::reset_muted_dialogs() {
+                Ok(()) => {
+                    log::log("[SETTINGS] hidden warnings brought back");
+                    host.info("Hidden warnings will be shown again.", "Settings");
+                }
+                Err(e) => host.error(&format!("The hidden warnings could not be reset.\n\n{e}"), "Settings"),
+            },
+            ("updates", "unskip", EventKind::Click) => settings::set_skipped_version(""),
             ("updates", "startup", EventKind::Check(on)) => settings::set_check_updates_on_startup(*on),
             ("updates", "channel", EventKind::Select(i)) => {
                 let wanted = Channel::from_index(*i);

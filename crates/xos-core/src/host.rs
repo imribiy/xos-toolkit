@@ -82,6 +82,9 @@ pub trait Host: Send + Sync {
     fn confirm_once(&self, key: &str, message: &str, title: &str, icon: Icon) -> bool {
         self.dialog_mutable(key, message, title, Buttons::YesNo, icon) == DialogResult::Yes
     }
+    fn choose(&self, _message: &str, _title: &str, _labels: &[&str], _icon: Icon) -> Option<usize> {
+        None
+    }
 }
 
 pub trait Page: Send + Sync {

@@ -38,6 +38,17 @@ pub fn on_exit(reason: &str) {
     xos_core::session_log::write_digest();
 }
 
+pub fn restart_toolkit(reason: &str) -> Result<(), String> {
+    let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    std::process::Command::new(&exe).spawn().map_err(|e| e.to_string())?;
+    log::log(&format!("[SETTINGS] restarting XOS Toolkit ({reason})"));
+    on_exit(reason);
+    let _ = slint::invoke_from_event_loop(|| {
+        let _ = slint::quit_event_loop();
+    });
+    Ok(())
+}
+
 fn main() {
     let release = !cfg!(debug_assertions);
     let claimed = release && bootstrap::claim();
@@ -57,6 +68,22 @@ fn main() {
     xos_sys::warm_feature_state_cache();
     if std::env::var_os("SLINT_BACKEND").is_none() {
         std::env::set_var("SLINT_BACKEND", "winit-software");
+    }
+    if std::env::var_os("XOS_TOOLKIT_SCALE_SET").is_some() {
+        std::env::remove_var("SLINT_SCALE_FACTOR");
+        std::env::remove_var("XOS_TOOLKIT_SCALE_SET");
+    }
+    let text_size = settings::text_size();
+    if text_size != 100 && std::env::var_os("SLINT_SCALE_FACTOR").is_none() {
+        let base = platform::system_dpi() as f32 / 96.0;
+        let wanted = base * text_size as f32 / 100.0;
+        let fit = platform::max_scale_for_min_window(920.0, 640.0).max(base);
+        let factor = wanted.min(fit);
+        if factor < wanted {
+            log::log(&format!("[SETTINGS] text size {text_size}% limited to scale {factor:.2} so the window fits the screen"));
+        }
+        std::env::set_var("SLINT_SCALE_FACTOR", format!("{factor}"));
+        std::env::set_var("XOS_TOOLKIT_SCALE_SET", "1");
     }
     if let Err(e) = shell::run(pages::all()) {
         let path = write_crash_file(&format!("UI failed to start: {e}"));

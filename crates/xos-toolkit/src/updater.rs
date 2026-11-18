@@ -192,12 +192,15 @@ pub fn offer_text(r: &Release, channel: Channel) -> String {
         ""
     };
     format!(
-        "XOS Toolkit {} is available ({} channel). You have {}.{beta}\n\nDownload and install it now? XOS Toolkit closes, installs the update and opens again.",
+        "XOS Toolkit {} is available ({} channel). You have {}.{beta}\n\nUpdate now: XOS Toolkit closes, installs the update and opens again.\nLater: ask again at the next start.\nSkip this version: do not ask about {} again (Settings can still install it).",
         r.version_text,
         channel.title(),
-        xos_core::VERSION
+        xos_core::VERSION,
+        r.version_text
     )
 }
+
+pub const OFFER_BUTTONS: [&str; 3] = ["Skip this version", "Later", "Update now"];
 
 pub fn startup_check(host: &dyn Host) {
     if !crate::settings::check_updates_on_startup() || std::env::var_os("XOS_TOOLKIT_NO_UPDATE_CHECK").is_some() {
@@ -205,11 +208,20 @@ pub fn startup_check(host: &dyn Host) {
     }
     let channel = crate::settings::channel();
     if let Check::Available(r) = check(channel) {
-        if host.confirm(&offer_text(&r, channel), "XOS Toolkit update", Icon::Question) {
-            log::log(&format!("[UPDATE] user accepted {}", r.version_text));
-            install(host, &r);
-        } else {
-            log::log(&format!("[UPDATE] user declined {}", r.version_text));
+        if crate::settings::skipped_version().as_deref() == Some(r.version_text.as_str()) {
+            log::log(&format!("[UPDATE] {} is skipped by the user; not asking", r.version_text));
+            return;
+        }
+        match host.choose(&offer_text(&r, channel), "XOS Toolkit update", &OFFER_BUTTONS, Icon::Question) {
+            Some(2) => {
+                log::log(&format!("[UPDATE] user accepted {}", r.version_text));
+                install(host, &r);
+            }
+            Some(0) => {
+                log::log(&format!("[UPDATE] user skipped {}", r.version_text));
+                crate::settings::set_skipped_version(&r.version_text);
+            }
+            _ => log::log(&format!("[UPDATE] user postponed {}", r.version_text)),
         }
     }
 }

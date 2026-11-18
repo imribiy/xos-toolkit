@@ -143,6 +143,34 @@ pub fn set_channel(c: Channel) {
     logged(&format!("UpdateChannel = {}", c.name()), write_string("UpdateChannel", c.name()));
 }
 
+pub const TEXT_SIZES: [(u32, &str); 4] = [(100, "100% (default)"), (110, "110%"), (125, "125%"), (150, "150%")];
+
+pub fn text_size() -> u32 {
+    let v = read_u32("TextSize").unwrap_or(100);
+    if TEXT_SIZES.iter().any(|(p, _)| *p == v) {
+        v
+    } else {
+        100
+    }
+}
+
+pub fn text_size_index() -> i32 {
+    let v = text_size();
+    TEXT_SIZES.iter().position(|(p, _)| *p == v).unwrap_or(0) as i32
+}
+
+pub fn set_text_size(percent: u32) {
+    logged(&format!("TextSize = {percent}"), write_u32("TextSize", percent));
+}
+
+pub fn skipped_version() -> Option<String> {
+    read_string("SkippedVersion").filter(|s| !s.trim().is_empty())
+}
+
+pub fn set_skipped_version(v: &str) {
+    logged(&format!("SkippedVersion = {v}"), write_string("SkippedVersion", v));
+}
+
 type ThemeHook = Box<dyn Fn(bool) + Send + Sync>;
 
 static THEME_HOOK: OnceLock<ThemeHook> = OnceLock::new();
