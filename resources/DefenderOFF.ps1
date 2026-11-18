@@ -96,7 +96,16 @@ function RegSetDwords ($hive, $key, [array]$values, [array]$dword, $REG_TYPE=4, 
 
  rnp "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" "Disabled" "Disabled_Old" -force -ea 0
  sp "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting" "Disabled" 1 -type Dword -force -ea 0
- stop-service "wscsvc" -force -ea 0 >$null 2>$null
+ Log 'Stopping wscsvc (max 15 seconds)'
+ try {
+   $wsc = Get-Service -Name 'wscsvc' -ErrorAction Stop
+   if ($wsc.Status -ne 'Stopped') {
+     try { $wsc.Stop() } catch { Log "wscsvc stop request refused: $($_.Exception.Message)" }
+     try { $wsc.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(15)) } catch { }
+     $wsc.Refresh()
+   }
+   Log "wscsvc status: $($wsc.Status)"
+ } catch { Log "wscsvc not stopped: $($_.Exception.Message)" }
  kill -name "OFFmeansOFF","MpCmdRun" -force -ea 0
 
  $HKLM = [uintptr][uint32]2147483650; $HKU = [uintptr][uint32]2147483651
@@ -182,8 +191,15 @@ if ($svcImagePath) {
   Log "Platform dir: $(Get-Location)"
   if ($op -eq "Disable") {
     if (Test-Path -LiteralPath 'MpCmdRun.exe') {
-      try { Rename-Item -LiteralPath 'MpCmdRun.exe' -NewName 'OFFmeansOFF.exe' -Force -ErrorAction Stop; Log 'Renamed MpCmdRun.exe -> OFFmeansOFF.exe' }
-      catch { Log "MpCmdRun.exe rename FAILED: $($_.Exception.Message)" }
+      $renamed = $false
+      for ($attempt = 1; $attempt -le 10 -and -not $renamed; $attempt++) {
+        if (-not (Test-Path -LiteralPath 'MpCmdRun.exe') -or (Test-Path -LiteralPath 'OFFmeansOFF.exe')) { Log "MpCmdRun.exe rename stopped at attempt ${attempt}: MpCmdRun.exe present=$(Test-Path -LiteralPath 'MpCmdRun.exe'); OFFmeansOFF.exe present=$(Test-Path -LiteralPath 'OFFmeansOFF.exe')"; break }
+        try { Rename-Item -LiteralPath 'MpCmdRun.exe' -NewName 'OFFmeansOFF.exe' -Force -ErrorAction Stop; $renamed = $true; Log "Renamed MpCmdRun.exe -> OFFmeansOFF.exe (attempt $attempt)" }
+        catch {
+          if ($attempt -eq 10) { Log "MpCmdRun.exe rename FAILED after $attempt attempts: $($_.Exception.Message)" }
+          else { kill -name 'MpCmdRun' -force -ea 0; sleep 3 }
+        }
+      }
     } elseif (Test-Path -LiteralPath 'OFFmeansOFF.exe') {
       Log 'MpCmdRun.exe is already normalized as OFFmeansOFF.exe'
     } else {
