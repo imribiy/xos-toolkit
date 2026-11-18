@@ -285,19 +285,11 @@ pub fn uninstall_reg_del_optional(key: &str, value: &str, optional: bool) -> boo
     } else {
         xos_sys::reg_delete_value(key, value);
     }
-    let mut removed = if hklm {
+    let verified = if hklm {
         registry_value_query_exit_code_as_ti(key, value) == 1
     } else {
         !xos_sys::reg_value_exists(key, value)
     };
-    if hklm && !removed {
-        uninstall_log(&format!(
-            "  DEL [{value}]: standard TrustedInstaller delete was refused, retrying with a neutral helper name"
-        ));
-        xos_sys::run_as_ti_renamed("reg.exe", &format!("delete \"{key}\" /v \"{value}\" /f"));
-        removed = registry_value_query_exit_code_as_ti(key, value) == 1;
-    }
-    let verified = removed;
     if optional && !verified {
         let still_there = dword_and_string_text(key, value);
         uninstall_log(&format!(
@@ -352,19 +344,11 @@ pub fn uninstall_reg_del_key(key: &str) -> bool {
     } else {
         xos_sys::reg_delete_key(key);
     }
-    let mut removed = if hklm {
+    let verified = if hklm {
         registry_key_query_exit_code_as_ti(key) == 1
     } else {
         !xos_sys::reg_key_exists(key)
     };
-    if hklm && !removed {
-        uninstall_log(
-            "  DELKEY: standard TrustedInstaller delete was refused, retrying with a neutral helper name",
-        );
-        xos_sys::run_as_ti_renamed("reg.exe", &format!("delete \"{key}\" /f"));
-        removed = registry_key_query_exit_code_as_ti(key) == 1;
-    }
-    let verified = removed;
     record_action_command(verified);
     uninstall_log(&format!(
         "  DELKEY: {}  -- {key}",

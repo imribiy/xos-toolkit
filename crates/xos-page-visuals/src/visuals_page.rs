@@ -640,9 +640,9 @@ impl VisualsPage {
         let mut app_detail = String::new();
         let mut can_open_store = false;
         if ok && enable && widgets_app::applies() {
-            host.set_status(
-                "Checking the Widgets app, installing it from the Microsoft Store if it is missing...",
-            );
+            let install_text = "Checking the Widgets app, installing it from the Microsoft Store if it is missing (up to 2 minutes)...";
+            self.set_overlay(host, Some(install_text));
+            host.set_status(install_text);
             let (o, d, c) = widgets_app::ensure_installed();
             app = o;
             app_detail = d;

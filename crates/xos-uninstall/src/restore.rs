@@ -243,7 +243,7 @@ pub fn restore_data_collection_settings() -> bool {
             continue;
         }
 
-        let written = xos_sys::run_as_ti_renamed(
+        let written = xos_sys::run_as_ti(
             "reg.exe",
             &format!("add \"{target}\" /v \"{value}\" /t REG_DWORD /d 3 /f"),
         );

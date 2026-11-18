@@ -32,8 +32,8 @@ use xos_sys::{
     config_service_reg, config_service_sc, disable_task, enable_task, expand_environment_variables,
     get_scheduled_task_paths_by_name_prefix, get_service_start_type, get_task_state,
     record_task_state_failure, reg_delete_key, reg_delete_value, reg_get_dword, reg_get_string,
-    reg_set_dword, reg_set_string, run_as_ti_renamed_timeout, run_as_ti_timeout,
-    run_cmd_output_timeout, service_exists, stop_service, stop_service_best_effort, try_disable_task_quiet,
+    reg_set_dword, reg_set_string, run_as_ti_timeout, run_cmd_output_timeout, service_exists,
+    stop_service, stop_service_best_effort, try_disable_task_quiet,
 };
 
 use crate::util::{
@@ -846,7 +846,7 @@ fn delete_registration_key(hklm: bool, view32: bool, path: &str) {
             ));
             if hklm {
                 let view_switch = if view32 { "/reg:32" } else { "/reg:64" };
-                let ok = run_as_ti_renamed_timeout(
+                let ok = run_as_ti_timeout(
                     "reg.exe",
                     &format!("delete \"HKLM\\{path}\" /f {view_switch}"),
                     60000,

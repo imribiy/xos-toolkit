@@ -13,8 +13,6 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const EDGE_UNINSTALL_GEO_ID: i32 = 94;
 const EDGE_UNINSTALL_GEO_NAME: &str = "DE";
 const GEO_PATH: &str = r".DEFAULT\Control Panel\International\Geo";
-const DEVICE_REGION_KEY: &str =
-    r"SOFTWARE\Microsoft\Windows\CurrentVersion\Control Panel\DeviceRegion";
 pub const EDGE_BROWSER_GUID: &str = "{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}";
 const EDGE_APPX_SCRIPT: &str = include_str!("edge_appx.ps1");
 
@@ -245,7 +243,7 @@ fn remove_edge_registry_entries() -> bool {
         if !xos_sys::reg_key_exists(&key) {
             continue;
         }
-        let command_ok = xos_sys::run_as_ti_renamed("reg.exe", &format!("delete \"{key}\" /f"));
+        let command_ok = xos_sys::run_as_ti("reg.exe", &format!("delete \"{key}\" /f"));
         let removed = !xos_sys::reg_key_exists(&key);
         log::log(&format!(
             "[Apps] Edge registry cleanup: {key}; commandOk={}; removed={}",
@@ -279,13 +277,6 @@ impl EdgeRemovalOutcome {
     }
 }
 
-fn set_device_region(value: i32) -> bool {
-    xos_sys::run_as_ti_renamed(
-        "reg.exe",
-        &format!("add \"HKLM\\{DEVICE_REGION_KEY}\" /v DeviceRegion /t REG_DWORD /d {value} /f"),
-    )
-}
-
 fn ignore_missing(r: std::io::Result<()>) -> std::io::Result<()> {
     match r {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -296,10 +287,9 @@ fn ignore_missing(r: std::io::Result<()>) -> std::io::Result<()> {
 struct SavedRegion {
     nation: Option<RegValue<'static>>,
     geo_name: Option<RegValue<'static>>,
-    device_region: Option<i32>,
 }
 
-fn restore_region(saved: &SavedRegion, device_region_spoofed: bool, out: &mut EdgeRemovalOutcome) {
+fn restore_region(saved: &SavedRegion, out: &mut EdgeRemovalOutcome) {
     let restore = || -> std::io::Result<()> {
         let geo =
             RegKey::predef(HKEY_USERS).open_subkey_with_flags(GEO_PATH, KEY_READ | KEY_WRITE)?;
@@ -316,18 +306,6 @@ fn restore_region(saved: &SavedRegion, device_region_spoofed: bool, out: &mut Ed
     if restore().is_err() {
         out.region_restore_ok = false;
     }
-    if device_region_spoofed {
-        let restored = match saved.device_region {
-            Some(v) => set_device_region(v),
-            None => xos_sys::run_as_ti_renamed(
-                "reg.exe",
-                &format!("delete \"HKLM\\{DEVICE_REGION_KEY}\" /v DeviceRegion /f"),
-            ),
-        };
-        if !restored {
-            out.region_restore_ok = false;
-        }
-    }
     if !out.region_restore_ok {
         log::log("[Apps] Edge removal could not restore one or more temporary region values.");
     }
@@ -336,9 +314,6 @@ fn restore_region(saved: &SavedRegion, device_region_spoofed: bool, out: &mut Ed
 fn verify_region_spoof() -> Result<()> {
     let verify_geo = RegKey::predef(HKEY_USERS)
         .open_subkey_with_flags(GEO_PATH, KEY_READ)
-        .ok();
-    let verify_region = hklm()
-        .open_subkey_with_flags(DEVICE_REGION_KEY, KEY_READ)
         .ok();
     let nation_ok = verify_geo
         .as_ref()
@@ -350,12 +325,7 @@ fn verify_region_spoof() -> Result<()> {
         .and_then(|k| k.get_value::<String, _>("Name").ok())
         .map(|v| v.eq_ignore_ascii_case(EDGE_UNINSTALL_GEO_NAME))
         .unwrap_or(false);
-    let region_value = verify_region
-        .as_ref()
-        .and_then(|k| k.get_value::<u32, _>("DeviceRegion").ok())
-        .map(|v| v as i32)
-        .unwrap_or(0);
-    if !nation_ok || !name_ok || region_value != EDGE_UNINSTALL_GEO_ID {
+    if !nation_ok || !name_ok {
         bail!("The temporary EEA region could not be verified.");
     }
     Ok(())
@@ -367,27 +337,15 @@ pub fn run_edge_removal(out: &mut EdgeRemovalOutcome) -> Result<()> {
     let geo_key = RegKey::predef(HKEY_USERS)
         .open_subkey_with_flags(GEO_PATH, KEY_READ | KEY_WRITE)
         .map_err(|_| anyhow!("The default-user region could not be backed up."))?;
-    let mut saved = SavedRegion {
+    let saved = SavedRegion {
         nation: geo_key.get_raw_value("Nation").ok(),
         geo_name: geo_key.get_raw_value("Name").ok(),
-        device_region: None,
     };
     geo_key.set_value("Nation", &EDGE_UNINSTALL_GEO_ID.to_string())?;
     geo_key.set_value("Name", &EDGE_UNINSTALL_GEO_NAME)?;
     drop(geo_key);
 
-    saved.device_region = hklm()
-        .open_subkey_with_flags(DEVICE_REGION_KEY, KEY_READ)
-        .ok()
-        .and_then(|k| k.get_value::<u32, _>("DeviceRegion").ok())
-        .map(|v| v as i32);
-
-    let mut device_region_spoofed = false;
     let inner = (|| -> Result<()> {
-        device_region_spoofed = set_device_region(EDGE_UNINSTALL_GEO_ID);
-        if !device_region_spoofed {
-            bail!("The device region could not be changed temporarily.");
-        }
         verify_region_spoof()?;
 
         remove_edge_component(
@@ -406,7 +364,7 @@ pub fn run_edge_removal(out: &mut EdgeRemovalOutcome) -> Result<()> {
         Ok(())
     })();
 
-    restore_region(&saved, device_region_spoofed, out);
+    restore_region(&saved, out);
     inner?;
 
     out.updater_block_started = true;

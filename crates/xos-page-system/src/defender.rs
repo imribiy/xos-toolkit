@@ -10,9 +10,9 @@ use xos_core::{app_state, log};
 use xos_helpers::{defender_run_entry, service_defaults_table};
 use xos_sys::{
     extract_protected_resource, get_service_delayed_auto_start, get_service_start_type,
-    get_windows_build_number, is_service_binary_missing, reg_delete_key, reg_delete_value,
-    reg_get_dword, reg_get_string, reg_set_dword, reg_set_expand_string, reg_set_string,
-    run_as_ti_output, run_cmd_capture_opts, service_exists, strip_clixml_noise,
+    get_task_state, get_windows_build_number, is_service_binary_missing, reg_delete_key,
+    reg_delete_value, reg_get_dword, reg_get_string, reg_set_dword, reg_set_expand_string,
+    reg_set_string, run_as_ti_output, run_cmd_capture_opts, service_exists, strip_clixml_noise,
 };
 
 use crate::common::{self, done, encode_command, process_running, TITLE};
@@ -312,7 +312,7 @@ impl DefLog {
         if is_missing_task_result(code, &output) {
             if code != 0 {
                 self.log(&format!(
-                    "    {tag}: this build does not ship that task, nothing to disable."
+                    "    {tag}: task not present right now (Defender removes and recreates its own tasks), nothing to disable."
                 ));
             }
             return true;
@@ -594,15 +594,16 @@ fn enable_defender(
         l.log("--- Already enabled ---");
         l.log("  WinDefend is automatic and the engine is running, so there is nothing to write.");
         l.log("  A running Defender engine protects its own registry keys, so writes here would be refused and none are needed.");
+        let (cleared, cleanup_ok) = clear_disable_leftovers(l);
         if options.show_result {
-            done(
-                host,
-                "Windows Defender is already enabled and its engine is running. Nothing needed changing.",
-                false,
-                None,
-            );
+            let msg = match (cleared, cleanup_ok) {
+                (_, false) => "Windows Defender is already enabled and its engine is running, but a leftover of an earlier disable could not be removed. See the log.",
+                (true, true) => "Windows Defender is already enabled and its engine is running. Leftovers of an earlier disable were removed.",
+                (false, true) => "Windows Defender is already enabled and its engine is running. Nothing needed changing.",
+            };
+            done(host, msg, !cleanup_ok, None);
         }
-        return true;
+        return cleanup_ok;
     }
 
     let busy = Busy {
@@ -885,6 +886,44 @@ fn enable_defender(
         options.show_result,
         options.defer_reboot_status,
     )
+}
+
+fn clear_disable_leftovers(l: &mut DefLog) -> (bool, bool) {
+    let mut found = false;
+    let mut ok = true;
+    if get_task_state(r"\XOS-DefenderDisable") >= 0 {
+        found = true;
+        l.log("--- Remove boot safety task left by an earlier disable ---");
+        l.run(
+            "Delete ONSTART task",
+            "schtasks.exe",
+            "/delete /tn XOS-DefenderDisable /f",
+        );
+        let gone = get_task_state(r"\XOS-DefenderDisable") < 0;
+        l.log(&format!(
+            "  XOS-DefenderDisable removed: {}",
+            bool_text(gone)
+        ));
+        ok &= gone;
+    }
+    for logger in ["DefenderApiLogger", "DefenderAuditLogger"] {
+        let key = format!(r"HKLM\SYSTEM\CurrentControlSet\Control\WMI\Autologger\{logger}");
+        if reg_get_dword(&key, "Start") == Some(0) {
+            found = true;
+            l.log(&format!(
+                "--- Re-enable {logger} left off by an earlier disable ---"
+            ));
+            l.run(
+                &format!("{logger} Start=1"),
+                "reg.exe",
+                &reg_add_dword(&key, "Start", 1),
+            );
+            let on = reg_get_dword(&key, "Start") == Some(1);
+            l.log(&format!("  {logger} Start=1: {}", bool_text(on)));
+            ok &= on;
+        }
+    }
+    (found, ok)
 }
 
 fn bool_text(b: bool) -> &'static str {

@@ -30,7 +30,7 @@ pub enum Outcome {
 pub const PACKAGE_NAME: &str = "MicrosoftWindows.Client.WebExperience";
 pub const STORE_PRODUCT_ID: &str = "9MSSGKG348SP";
 pub const STORE_URI: &str = "ms-windows-store://pdp/?productid=9MSSGKG348SP";
-const INSTALL_TIMEOUT_MS: u32 = 300000;
+const INSTALL_TIMEOUT_MS: u32 = 120000;
 
 pub fn applies() -> bool {
     get_windows_build_number() >= 22000

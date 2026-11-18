@@ -19,8 +19,8 @@ use crate::process::{
     terminate_process_tree, wait_for_exit, CmdOptions,
 };
 use crate::util::{
-    escape_powershell_literal, file_name_of, guid_n, io_message, path_combine, path_is_rooted,
-    pcwstr, program_data_dir, quote_command_argument, read_all_text, system_dir, wide, windows_dir,
+    escape_powershell_literal, file_name_of, guid_n, io_message, path_combine, pcwstr,
+    program_data_dir, quote_command_argument, read_all_text, wide, windows_dir,
 };
 use xos_core::{log, session_log};
 
@@ -350,46 +350,6 @@ pub fn run_as_ti_with(file_name: &str, arguments: &str, o: &TiOptions) -> bool {
         log::perf(&format!("TI {}", file_name_of(file_name)), ms);
     }
     ok || ignored
-}
-
-pub fn run_as_ti_renamed(file_name: &str, arguments: &str) -> bool {
-    run_as_ti_renamed_timeout(file_name, arguments, 300000)
-}
-
-pub fn run_as_ti_renamed_timeout(file_name: &str, arguments: &str, timeout_ms: u32) -> bool {
-    let mut source = file_name.to_string();
-    if !path_is_rooted(&source) {
-        source = path_combine(&system_dir(), &source);
-    }
-    let mut temporary_helper: Option<String> = None;
-    let result = (|| -> Result<bool, String> {
-        if !std::path::Path::new(&source).exists() {
-            log::log(&format!(
-                "[TI] Neutral helper source was not found: {source}"
-            ));
-            return Ok(false);
-        }
-        let temp_directory = path_combine(&windows_dir(), "Temp");
-        std::fs::create_dir_all(&temp_directory).map_err(|e| io_message(&e))?;
-        let helper = path_combine(&temp_directory, &format!("XOS-Region-{}.exe", guid_n()));
-        temporary_helper = Some(helper.clone());
-        std::fs::copy(&source, &helper).map_err(|e| io_message(&e))?;
-        log::log(&format!("[TI] Using neutral-named helper {helper}"));
-        Ok(run_as_ti_timeout(&helper, arguments, timeout_ms))
-    })();
-    let ok = match result {
-        Ok(v) => v,
-        Err(m) => {
-            log::log(&format!("[TI] Neutral helper failed: {m}"));
-            false
-        }
-    };
-    if let Some(h) = temporary_helper {
-        if std::path::Path::new(&h).exists() {
-            let _ = std::fs::remove_file(&h);
-        }
-    }
-    ok
 }
 
 pub fn run_as_ti_output(file_name: &str, arguments: &str) -> (i32, String) {

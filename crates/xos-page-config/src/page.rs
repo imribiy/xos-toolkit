@@ -412,7 +412,11 @@ impl ConfigurationPage {
                         "Configuration restore paused. Fix Defender protection, then click Apply again.",
                     );
                     host.warn(
-                        "Configuration restore paused.\n\nNo other configuration categories were applied. Turn off the requested Defender protection in Windows Security, then click Apply again.",
+                        if target {
+                            "Configuration restore paused.\n\nNo other configuration categories were applied. Enabling Windows Defender did not complete; the Toolkit log names the step that failed. Fix it, then click Apply again."
+                        } else {
+                            "Configuration restore paused.\n\nNo other configuration categories were applied. Turn off the requested Defender protection in Windows Security, then click Apply again."
+                        },
                         TITLE,
                     );
                     return Ok(());

@@ -3,7 +3,7 @@ use std::sync::OnceLock;
 
 use regex::Regex;
 
-use crate::elevation::{resource_bytes, run_as_ti_renamed};
+use crate::elevation::{resource_bytes, run_as_ti};
 use crate::misc::notify_shell_assoc_changed;
 use crate::process::{
     describe_command, run_cmd, run_cmd_capture, run_cmd_capture_into, run_cmd_opts, run_cmd_output,
@@ -408,11 +408,11 @@ fn set_power_plan_friendly_name() -> bool {
     let key = format!(
         r"HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\{XOS_POWER_PLAN_GUID}"
     );
-    let name_ok = run_as_ti_renamed(
+    let name_ok = run_as_ti(
         "reg.exe",
         &format!("add \"{key}\" /v FriendlyName /t REG_SZ /d \"imribiy Power Plan\" /f"),
     );
-    run_as_ti_renamed(
+    run_as_ti(
         "reg.exe",
         &format!("add \"{key}\" /v Description /t REG_SZ /d \"dsc.gg/xos\" /f"),
     );
