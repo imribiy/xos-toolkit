@@ -2,7 +2,7 @@
 ; Same AppId, install folder and CPU service task as the earlier C# Toolkit installer, so an existing install upgrades in place.
 
 #define MyAppName "XOS Toolkit"
-#define MyAppVersion "0.4.2"
+#define MyAppVersion "0.4.3"
 #define MyAppPublisher "imribiy"
 #define MyAppExeName "XOS-Toolkit.exe"
 #define MyAppURL "https://github.com/imribiy/xos"

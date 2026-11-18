@@ -282,7 +282,7 @@ try {
         try {
             $task=Read-XosTask $scheduler $path
             if ($null -eq $task) { $missing++; Write-Output ('GONE '+$path+' :: explicit task/path not found'); continue }
-            if ([bool]$task.Enabled -eq $want) { $already++; continue }
+            if ([bool]$task.Enabled -eq $want) { $already++; Write-Output ('VERIFIED '+$path+' :: state already as requested'); continue }
             $writeError=''
             try { $task.Enabled=$want } catch { $writeError=Task-ErrorText $_ }
             $verified=$false;$absent=$false;$readError=''

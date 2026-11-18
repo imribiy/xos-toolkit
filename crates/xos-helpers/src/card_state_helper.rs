@@ -329,4 +329,43 @@ mod tests {
         assert_eq!(evaluate_nagle(&ifaces, Some(&adapters)).state, "Disabled");
         assert_eq!(evaluate_nagle(&ifaces, None).state, "Partial");
     }
+
+    #[test]
+    fn nagle_with_hyperv_external_switch() {
+        let adapters = [
+            NetAdapterInfo {
+                guid: "{NIC}".into(),
+                characteristics: NCF_PHYSICAL,
+                pnp_instance_id: r"PCI\VEN_10EC".into(),
+                ..Default::default()
+            },
+            NetAdapterInfo {
+                guid: "{VETH}".into(),
+                characteristics: NCF_VIRTUAL,
+                pnp_instance_id: r"ROOT\VMS_MP\0000".into(),
+                ..Default::default()
+            },
+        ];
+        let disabled = [
+            iface("{nic}", Some(1), Some(1), false),
+            iface("{veth}", Some(1), Some(1), true),
+            iface("{loop}", None, None, false),
+        ];
+        assert_eq!(evaluate_nagle(&disabled, Some(&adapters)).state, "Disabled");
+        let switch_made_after_disable = [
+            iface("{nic}", Some(1), Some(1), false),
+            iface("{veth}", None, None, true),
+        ];
+        let r = evaluate_nagle(&switch_made_after_disable, Some(&adapters));
+        assert_eq!(r.state, "Partial");
+        assert_eq!(
+            r.lacking,
+            vec!["{veth} TcpAckFrequency=absent TCPNoDelay=absent Gateway=yes".to_string()]
+        );
+        let restored = [
+            iface("{nic}", None, None, false),
+            iface("{veth}", None, None, true),
+        ];
+        assert_eq!(evaluate_nagle(&restored, Some(&adapters)).state, "Enabled");
+    }
 }

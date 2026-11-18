@@ -95,6 +95,23 @@ mod column_width_tests {
         cache.update(&table(&["Task", "Path"], &[0.0, 120.0]));
         assert_eq!(cache.columns.row_data(0).unwrap().width, 0.0);
     }
+
+    #[test]
+    fn another_table_in_the_same_slot_gets_fresh_models() {
+        let mut cache = CtlCache::default();
+        cache.update(&table(&["Name", "Command", "Location", "Scope"], &[200.0, 0.0, 110.0, 65.0]));
+        let old = cache.columns.clone();
+        let cols = ["Task", "Folder", "Trigger", "Action"]
+            .iter()
+            .zip([220.0, 170.0, 120.0, 0.0])
+            .map(|(t, w)| m::Column { title: t.to_string(), width: w })
+            .collect();
+        let d = cache.update(&m::Control::table("tasks", m::Table::new(cols, Vec::new())));
+        assert!(!std::rc::Rc::ptr_eq(&old, &cache.columns));
+        let titles: Vec<String> = (0..d.columns.row_count()).map(|i| d.columns.row_data(i).unwrap().title.to_string()).collect();
+        assert_eq!(titles, ["Task", "Folder", "Trigger", "Action"]);
+        assert_eq!(d.columns.row_data(0).unwrap().width, 220.0);
+    }
 }
 
 #[cfg(test)]
@@ -139,6 +156,9 @@ impl CtlCache {
     fn update(&mut self, c: &m::Control) -> ControlD {
         if self.src.as_ref() == Some(c) {
             return self.value.clone();
+        }
+        if self.src.as_ref().is_some_and(|s| s.id != c.id || s.kind != c.kind) {
+            *self = CtlCache::default();
         }
         if self.options_src != c.options {
             sync_model(&self.options, c.options.iter().map(|s| ss(s)).collect());
