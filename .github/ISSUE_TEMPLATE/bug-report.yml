@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in the XOS playbook or the XOS Toolkit does not work as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        **Attach a diagnostic bundle if you can.** In the XOS Toolkit, open **Troubleshooting** and click **Report a Problem** (or **Export Diagnostic Bundle**). The Toolkit creates a ZIP of the XOS, AME Wizard and Windows logs with user and computer names, emails, IP and MAC addresses removed.
+
+        **Reports here are public.** Open the ZIP and look through it before you attach it. Leave out anything you do not want to share.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead? Include any error message.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do right before the problem appeared?
+      placeholder: |
+        1. Opened the Toolkit, Gaming page
+        2. Clicked ...
+        3. ...
+  - type: input
+    id: playbook-version
+    attributes:
+      label: XOS playbook version
+      description: Shown in AME Wizard and in the name of the .apbx file. Leave empty if you only use the Toolkit.
+      placeholder: V0.811
+  - type: input
+    id: toolkit-version
+    attributes:
+      label: XOS Toolkit version
+      description: Shown on the Toolkit's About page. Filled in for you when you use Report a Problem.
+      placeholder: 0.4.3
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Filled in for you when you use Report a Problem.
+      placeholder: Windows 11 Pro 25H2, build 26200.7171
+  - type: textarea
+    id: bundle
+    attributes:
+      label: Diagnostic bundle
+      description: Drag the XOS-Diagnostics ZIP into this box. GitHub accepts files up to 25 MB.
+  - type: checkboxes
+    id: consent
+    attributes:
+      label: Sharing
+      options:
+        - label: I understand this report and anything attached to it are public.
+          required: true

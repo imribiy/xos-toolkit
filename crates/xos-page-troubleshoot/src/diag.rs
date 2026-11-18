@@ -142,15 +142,17 @@ pub fn create_diagnostic_bundle(destination: &Path) -> std::io::Result<()> {
             &mut manifest,
             &mut seen,
         );
-        copy_diagnostic_file(
+        copy_servicing_log(
             r"C:\Windows\Logs\DISM\dism.log",
             &t("Windows-Logs").join("dism.log"),
             &mut manifest,
+            "DISM",
         );
-        copy_diagnostic_file(
+        copy_servicing_log(
             r"C:\Windows\Logs\CBS\CBS.log",
             &t("Windows-Logs").join("CBS.log"),
             &mut manifest,
+            "CBS",
         );
 
         copy_uninstall_logs(&t("Uninstall-Logs"), &mut manifest);
@@ -212,10 +214,17 @@ fn copy_diagnostic_directory(
 
     let mut copied = 0;
     let mut skipped = 0;
+    let mut other_sessions: Vec<String> = Vec::new();
     for file in enumerate_diagnostic_files(&normalized, manifest) {
         let relative = file[normalized.len().min(file.len())..]
             .trim_start_matches(['\\', '/'])
             .to_string();
+        if let Some(folder) = other_playbook_session(&relative) {
+            if !other_sessions.iter().any(|f| f == folder) {
+                other_sessions.push(folder.to_string());
+            }
+            continue;
+        }
         let target = destination.join(&relative);
         let attempt = (|| -> std::io::Result<bool> {
             if let Some(dir) = target.parent() {
@@ -235,10 +244,26 @@ fn copy_diagnostic_directory(
             }
         }
     }
+    for folder in &other_sessions {
+        nl(manifest, &format!("[other playbook, left out] {normalized}\\{folder}"));
+    }
     nl(
         manifest,
         &format!("[included] {normalized} ({copied} files, {skipped} skipped)"),
     );
+}
+
+pub(crate) fn other_playbook_session(relative: &str) -> Option<&str> {
+    let (folder, rest) = relative.split_once(['\\', '/'])?;
+    if rest.is_empty() || !folder.starts_with('[') {
+        return None;
+    }
+    let (_, name) = folder.split_once("] ")?;
+    if name.to_ascii_lowercase().contains("xos") {
+        None
+    } else {
+        Some(folder)
+    }
 }
 
 fn enumerate_diagnostic_files(root: &str, manifest: &mut String) -> Vec<String> {
@@ -285,20 +310,120 @@ fn enumerate_diagnostic_files(root: &str, manifest: &mut String) -> Vec<String> 
     files_out
 }
 
-fn copy_diagnostic_file(source: &str, destination: &Path, manifest: &mut String) {
+const CBS_ROUTINE_PREFIXES: [&str; 7] = [
+    "Appl:",
+    "Plan:",
+    "Enumerating Foundation package",
+    "External EvaluateApplicability",
+    "Exec: Skipping Package",
+    "Read out cached package applicability",
+    "Skip FODs not currently",
+];
+const DISM_ROUTINE_TEXT: [&str; 13] = [
+    "Enter CCommandThread::",
+    "Leave CCommandThread::",
+    "Successfully enqueued command object",
+    "Successfully dequeued command object",
+    "Lookup in table by path failed",
+    "Initialized Panther logging",
+    "ExecuteLoop: CommandQueue signaled",
+    "CommandThread StartupEvent signaled",
+    "Waiting for m_pInternalThread to start",
+    "is not recognized by the DISM VHD provider",
+    "is not recognized by the DISM FFU provider",
+    "is not a WIM mount point",
+    "Found and Initialized the DISM Logger",
+];
+
+const CBS_ENUMERATION_PREFIXES: [&str; 6] = [
+    "Feature:",
+    "Feature specified for conditional",
+    "CBS: Package Keyform",
+    "Loading database:",
+    "Processing CompDB file:",
+    "Device: has Group",
+];
+
+fn servicing_entry(line: &str) -> Option<(&str, &str, &str)> {
+    let line = line.trim_start_matches('\u{feff}');
+    let b = line.as_bytes();
+    let stamp = b.len() > 21
+        && b[..19].iter().enumerate().all(|(i, c)| match i {
+            4 | 7 => *c == b'-',
+            10 => *c == b' ',
+            13 | 16 => *c == b':',
+            _ => c.is_ascii_digit(),
+        })
+        && &b[19..21] == b", ";
+    if !stamp {
+        return None;
+    }
+    if b.len() > 50 && b[43..50].iter().all(|c| *c == b' ') {
+        let level = line[21..43].trim_end();
+        return Some((level, "", line[50..].trim_start()));
+    }
+    let rest = &line[21..];
+    let (level, rest) = rest.split_once(char::is_whitespace)?;
+    let rest = rest.trim_start();
+    let (component, message) = rest.split_once(char::is_whitespace).unwrap_or((rest, ""));
+    Some((level, component, message.trim_start()))
+}
+
+fn servicing_routine(component: &str, message: &str) -> bool {
+    match component {
+        "CBS" => {
+            CBS_ROUTINE_PREFIXES.iter().any(|p| message.starts_with(p))
+                || (message.starts_with("Exec: Package:")
+                    && message.contains("is already in the correct state"))
+        }
+        "DISM" => DISM_ROUTINE_TEXT.iter().any(|t| message.contains(t)),
+        _ => false,
+    }
+}
+
+pub(crate) fn servicing_line_filter(log_component: &'static str) -> impl FnMut(&str) -> bool {
+    let mut previous_kept = true;
+    move |line: &str| {
+        let kept = match servicing_entry(line) {
+            None => previous_kept,
+            Some((level, component, message)) => {
+                level != "Info"
+                    || !(component == log_component && servicing_routine(component, message)
+                        || component.is_empty()
+                            && log_component == "CBS"
+                            && CBS_ENUMERATION_PREFIXES.iter().any(|p| message.starts_with(p)))
+            }
+        };
+        previous_kept = kept;
+        kept
+    }
+}
+
+fn copy_servicing_log(
+    source: &str,
+    destination: &Path,
+    manifest: &mut String,
+    log_component: &'static str,
+) {
     if !Path::new(source).is_file() {
         nl(manifest, &format!("[missing] {source}"));
         return;
     }
-    let attempt = (|| -> std::io::Result<()> {
+    let attempt = (|| -> std::io::Result<usize> {
         if let Some(dir) = destination.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        copy_redacted(source, destination)?;
-        Ok(())
+        redact::redact_file_filtered(
+            source,
+            &destination.to_string_lossy(),
+            servicing_line_filter(log_component),
+        )
     })();
     match attempt {
-        Ok(()) => nl(manifest, &format!("[included] {source}")),
+        Ok(dropped) => nl(
+            manifest,
+            &format!("[included] {source} ({dropped} routine Info lines left out)"),
+        ),
         Err(e) => nl(manifest, &format!("[file skipped] {source}: {e}")),
     }
 }
@@ -800,6 +925,48 @@ mod tests {
         assert!(line.contains("Warning"));
         let none = format_event_line(&record(0, "P", None));
         assert_eq!(none, "? | Info | P | 7 | properties: 1; C:\\x");
+    }
+
+    #[test]
+    fn servicing_filter_drops_only_routine_info() {
+        let mut cbs = servicing_line_filter("CBS");
+        let lines = [
+            ("\u{feff}2026-11-18 00:38:12, Info                  CBS    TI: --- Initializing Trusted Installer ---", true),
+            ("2026-11-18 00:38:12, Info                  CBS    Appl: detectParent: parent found: X, state: Installed", false),
+            ("  continuation of a dropped entry", false),
+            ("2026-11-18 00:38:12, Info                  CBS    Plan: Package: X, current: Installed, pending: Default", false),
+            ("2026-11-18 00:38:12, Info                  CBS    Exec: Package: X is already in the correct state, current: Installed", false),
+            ("2026-11-18 00:38:12, Info                  CBS    Exec: Skipping Package: X, Update: Y because it is already in the correct state", false),
+            ("2026-11-18 00:38:12, Info                  CBS    Exec: Unstage package: Microsoft-Windows-StepsRecorder-Package", true),
+            ("2026-11-18 00:38:12, Info                  CBS    Session: 1_2 finalized. Reboot required: no [HRESULT = 0x00000000 - S_OK]", true),
+            ("2026-11-18 00:38:12, Error                 CBS    Plan: failed to plan [HRESULT = 0x800f0922]", true),
+            ("  continuation of a kept entry", true),
+            ("2026-11-18 00:38:12, Info                  CSI    Appl: not a CBS line", true),
+            ("2026-11-16 16:41:30, Info                         Feature: Rsat.ServerManager.Tools~~0.0.1.0 found. Adding packages to it", false),
+            ("2026-11-16 16:41:30, Warning                      Feature: X could not be resolved", true),
+            ("2026-11-16 16:41:30, Info                         arbiter: --- CreateActionlist end with result: 0x800f0922 ---", true),
+            ("2026-11-16 16:41:30, Info                         Registry value does not exist, key: X", true),
+            ("2026-11-16 16:41:30, Info                  CBS    Skip FODs not currently installed", false),
+        ];
+        for (line, expected) in lines {
+            assert_eq!(cbs(line), expected, "{line}");
+        }
+        let mut dism = servicing_line_filter("DISM");
+        assert!(!dism("2026-08-17 13:44:57, Info                  DISM   API: PID=1980 TID=3952 Enter CCommandThread::ExecuteLoop - CCommandThread::ExecuteLoop"));
+        assert!(!dism("2026-08-17 13:44:57, Info                  DISM   Initialized Panther logging at C:\\Windows\\Logs\\DISM\\dism.log"));
+        assert!(dism("2026-08-17 13:44:57, Info                  DISM   DISM Package Manager: PID=2956 TID=7980 Finished initializing the CbsConUI Handler."));
+        assert!(dism("2026-08-17 13:44:57, Warning               DISM   API: PID=1 TID=2 Enter CCommandThread::ExecuteLoop"));
+    }
+
+    #[test]
+    fn other_playbook_sessions() {
+        assert_eq!(
+            other_playbook_session(r"[2026-11-03 (11.08 PM)] ReviOS\Output.txt"),
+            Some("[2026-11-03 (11.08 PM)] ReviOS")
+        );
+        assert_eq!(other_playbook_session(r"[2026-11-18 (12.37 AM)] XOS\Output.txt"), None);
+        assert_eq!(other_playbook_session("XOS-Scripts.log"), None);
+        assert_eq!(other_playbook_session(r"Sub\file.log"), None);
     }
 
     #[test]

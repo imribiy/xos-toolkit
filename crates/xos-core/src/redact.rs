@@ -714,6 +714,14 @@ fn read_lines(text: &str) -> Vec<&str> {
 }
 
 pub fn redact_file(source: &str, destination: &str) -> std::io::Result<()> {
+    redact_file_filtered(source, destination, |_| true).map(|_| ())
+}
+
+pub fn redact_file_filtered(
+    source: &str,
+    destination: &str,
+    mut keep: impl FnMut(&str) -> bool,
+) -> std::io::Result<usize> {
     use std::io::Read;
     use std::os::windows::fs::OpenOptionsExt;
     let mut f = std::fs::OpenOptions::new()
@@ -726,11 +734,17 @@ pub fn redact_file(source: &str, destination: &str) -> std::io::Result<()> {
     let (enc, skip) = detect_encoding(&bytes);
     let text = decode(&bytes[skip..], enc);
     let mut out = String::new();
+    let mut dropped = 0;
     for line in read_lines(&text) {
+        if !keep(line) {
+            dropped += 1;
+            continue;
+        }
         out.push_str(&redact(line));
         out.push_str("\r\n");
     }
-    std::fs::write(destination, encode(&out, enc))
+    std::fs::write(destination, encode(&out, enc))?;
+    Ok(dropped)
 }
 
 #[cfg(test)]

@@ -7,6 +7,7 @@ mod netinfo;
 mod page;
 mod procs;
 mod regval;
+mod report;
 mod uninstall;
 mod wmi;
 mod zipw;

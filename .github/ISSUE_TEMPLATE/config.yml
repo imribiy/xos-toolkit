@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation guide and FAQ
+    url: https://github.com/imribiy/XOS#readme
+    about: Many common questions are answered here.

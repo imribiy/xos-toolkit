@@ -1,14 +1,15 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use xos_core::host::{Buttons, FileFilter, Host, Icon, Page};
+use xos_core::host::{Buttons, DialogResult, FileFilter, Host, Icon, Page};
 use xos_core::ui::*;
 use xos_core::{app_state, catalog, detect, log};
 use xos_uninstall as u;
 
 use crate::diag;
+use crate::report;
 use crate::uninstall;
 
 const TITLE: &str = "XOS Toolkit";
@@ -150,19 +151,65 @@ impl TroubleshootPage {
         );
     }
 
-    fn export_logs(&self, host: &dyn Host) {
+    fn report_problem(&self, host: &dyn Host) {
+        let choice = host.dialog(
+            "This opens a bug report form on XOS's GitHub page in your browser. Sending it needs a free GitHub account, and reports there are public.\n\nA diagnostic bundle helps find the cause much faster. The Toolkit removes user and computer names, emails, IP and MAC addresses from it, but look through the ZIP before you attach it.\n\nCreate a diagnostic bundle first?",
+            "Report a Problem",
+            Buttons::YesNoCancel,
+            Icon::Question,
+        );
+        let bundle = match choice {
+            DialogResult::Yes => match self.export_logs(host, true) {
+                Some(path) => Some(path),
+                None => return,
+            },
+            DialogResult::No => None,
+            _ => return,
+        };
+        let url = report::issue_url(xos_core::VERSION, &report::windows_summary());
+        if let Some(path) = &bundle {
+            host.info(
+                &format!(
+                    "Diagnostic bundle saved to:\n\n{}\n\nFile Explorer will show the ZIP and your browser will open the report form. Drag the ZIP into the form's \"Diagnostic bundle\" box.",
+                    path.to_string_lossy()
+                ),
+                "Report a Problem",
+            );
+            let explorer = xos_sys::shell_start(
+                "explorer.exe",
+                &format!("/select,\"{}\"", path.to_string_lossy()),
+            );
+            if !explorer {
+                log::log("[REPORT] Could not open File Explorer at the bundle.");
+            }
+        }
+        if xos_sys::shell_start(&url, "") {
+            log::log("[REPORT] Bug report form handed to the default browser.");
+            log::action_done("Troubleshoot", false, false, Some("bug report form opened"));
+        } else {
+            log::log("[REPORT] Could not open the bug report form in the default browser.");
+            log::action_done("Troubleshoot", true, false, Some("browser did not open"));
+            host.error(
+                &format!(
+                    "Your browser could not be opened. Open this address yourself to report the problem:\n\n{}",
+                    report::NEW_ISSUE_URL
+                ),
+                "Report a Problem",
+            );
+        }
+    }
+
+    fn export_logs(&self, host: &dyn Host, for_report: bool) -> Option<PathBuf> {
         let default_name = format!(
             "XOS-Diagnostics-{}.zip",
             chrono::Local::now().format("%Y-%m-%d_%H-%M-%S")
         );
-        let Some(path) = host.save_file(
+        let path = host.save_file(
             "Export XOS Diagnostic Bundle",
             &[FileFilter::new("ZIP archive", &["zip"])],
             &default_name,
             diag::desktop_directory(),
-        ) else {
-            return;
-        };
+        )?;
         let path_text = path.to_string_lossy().to_string();
 
         self.set_busy_sub(host, Some("Collecting diagnostic logs..."), BUSY_SUB_DIAG);
@@ -202,14 +249,17 @@ impl TroubleshootPage {
                     payload.as_ref(),
                 )))
             });
-        match result {
+        let outcome = match result {
             Ok(()) => {
                 log::log(&format!("[DIAGNOSTICS] Export completed: {path_text}"));
                 host.set_status("Diagnostic bundle exported.");
-                host.info(
-                    &format!("Diagnostic bundle saved to:\n\n{path_text}"),
-                    TITLE,
-                );
+                if !for_report {
+                    host.info(
+                        &format!("Diagnostic bundle saved to:\n\n{path_text}\n\nTo report a problem, use Report a Problem and attach this ZIP to the report."),
+                        TITLE,
+                    );
+                }
+                Some(path)
             }
             Err(e) => {
                 log::exception("Diagnostic bundle export failed", &e.to_string());
@@ -218,9 +268,11 @@ impl TroubleshootPage {
                     &format!("Could not create the diagnostic bundle.\n\n{e}"),
                     TITLE,
                 );
+                None
             }
-        }
+        };
         self.set_busy(host, None);
+        outcome
     }
 
     fn restore_shell(&self, host: &dyn Host) {
@@ -656,12 +708,18 @@ impl Page for TroubleshootPage {
             "Removes Chocolatey and everything it left behind, even if it looks uninstalled already. Apps you installed with it stay installed. The Toolkit will not reinstall Chocolatey on its own.",
             Control::button("remove_choco", "Remove Chocolatey", BtnStyle::Warning),
         ))
-        .card(card(
-            "diag",
-            "Export Diagnostic Bundle",
-            "Creates one ZIP with XOS and AME Wizard logs, crash reports and Windows event logs. Send it when you report a problem.",
-            Control::button("export", "Export Diagnostic Bundle", BtnStyle::Action),
-        ))
+        .card(
+            Card::new(
+                "diag",
+                "Export Diagnostic Bundle",
+                "Creates one ZIP with XOS and AME Wizard logs, crash reports and Windows event logs, with user and computer names, emails, IP and MAC addresses removed. Report a Problem opens a bug report on XOS's GitHub page, where you can attach the ZIP.",
+            )
+            .not_searchable()
+            .actions(vec![
+                Control::button("export", "Export Diagnostic Bundle", BtnStyle::Action),
+                Control::button("report", "Report a Problem", BtnStyle::Enable),
+            ]),
+        )
         .card(
             Card::new(
                 "services",
@@ -700,7 +758,10 @@ impl Page for TroubleshootPage {
             "restore_shell" => self.restore_shell(host),
             "fix_time" => self.fix_time_sync(host),
             "remove_choco" => self.remove_choco(host),
-            "export" => self.export_logs(host),
+            "export" => {
+                self.export_logs(host, false);
+            }
+            "report" => self.report_problem(host),
             "win_defaults" => self.restore_win_services(host),
             "xos_defaults" => self.restore_xos_services(host),
             "reboot_bios" => self.reboot_bios(host),
