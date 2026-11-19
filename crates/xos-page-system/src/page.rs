@@ -100,7 +100,7 @@ const SEARCH_IFEO_KEYS: [&str; 3] = [
 const BG_MSG_TAGS: [i32; 2] = [20, 8];
 const BG_MSG_OPTIONS: [&str; 2] = ["50 Hz (Low)", "125 Hz (Default)"];
 
-const CARD_IDS: [&str; 18] = [
+const CARD_IDS: [&str; 19] = [
     "uac",
     "defender",
     "bgapps",
@@ -108,6 +108,7 @@ const CARD_IDS: [&str; 18] = [
     "power",
     "xosplan",
     "hibernate",
+    "faststartup",
     "gpumon",
     "usagerep",
     "vbs",
@@ -575,6 +576,33 @@ fn power_cfg_defaults() -> bool {
     ok
 }
 
+/// Fast Startup state from HibernateEnabled, the HiberbootEnabled setting and the
+/// HiberbootEnabled policy. Fast Startup is a partial hibernate, so with hibernation
+/// off it cannot run whatever HiberbootEnabled says; a policy value overrides the setting.
+fn fast_startup_state(
+    hibernate: Option<i32>,
+    setting: Option<i32>,
+    policy: Option<i32>,
+) -> (&'static str, Option<&'static str>) {
+    if hibernate == Some(0) {
+        return (
+            "Disabled",
+            Some("Hibernate is off, so Fast Startup cannot run."),
+        );
+    }
+    match policy {
+        Some(1) => return ("Enabled", Some("Turned on by a Group Policy on this PC.")),
+        Some(0) => return ("Disabled", Some("Turned off by a Group Policy on this PC.")),
+        _ => {}
+    }
+    match setting {
+        Some(1) => ("Enabled", None),
+        Some(0) => ("Disabled", None),
+        Some(_) => ("Partial", None),
+        None => (status::WINDOWS_DEFAULT, None),
+    }
+}
+
 fn ask_yes_no(host: &dyn Host, message: &str, title: &str, icon: Icon) -> bool {
     host.dialog(message, title, Buttons::YesNo, icon) == DialogResult::Yes
 }
@@ -727,6 +755,13 @@ impl SystemPage {
 
         let hiber_enabled = reg_get_dword(HIBER_KEY, "HibernateEnabled");
         self.set_badge("hibernate", &status::toggle(hiber_enabled), None);
+
+        let (fs_state, fs_detail) = fast_startup_state(
+            hiber_enabled,
+            reg_get_dword(SLEEP_POWER, "HiberbootEnabled"),
+            reg_get_dword(HIBER_POL, "HiberbootEnabled"),
+        );
+        self.set_badge("faststartup", fs_state, fs_detail);
 
         let gpu_perf = get_service_start_type("GraphicsPerfSvc");
         let ndu = get_service_start_type("Ndu");
@@ -1268,6 +1303,63 @@ impl SystemPage {
         self.done(
             host,
             "Hibernate disabled. The hiberfil.sys file will be removed, freeing disk space.",
+            false,
+            None,
+        );
+    }
+
+    fn fast_startup_enable(&self, host: &dyn Host) {
+        xos_sys::ops::reset();
+        if reg_get_dword(HIBER_KEY, "HibernateEnabled") == Some(0) {
+            if !ask_yes_no(
+                host,
+                "Fast Startup needs Hibernate, which is turned off.\n\nTurn Hibernate on as well?",
+                TITLE,
+                Icon::Question,
+            ) {
+                return;
+            }
+            let (ok, blocker) = hibernate_set(true);
+            if !ok {
+                self.after_change(host);
+                let blocker = blocker.unwrap_or_default();
+                self.done(
+                    host,
+                    &format!(
+                        "Fast Startup could not be enabled because Hibernate cannot be turned on on this system.{}",
+                        if blocker.is_empty() {
+                            String::new()
+                        } else {
+                            format!("\n\nWindows reported:\n{blocker}")
+                        }
+                    ),
+                    true,
+                    Some("firmware or platform does not support hibernation"),
+                );
+                return;
+            }
+            reg_set_dword(HIBER_KEY, "HibernateEnabled", 1);
+            reg_set_dword(HIBER_POL, "ShowHibernateOption", 1);
+        }
+        reg_delete_value(HIBER_POL, "HiberbootEnabled");
+        reg_set_dword(SLEEP_POWER, "HiberbootEnabled", 1);
+        self.after_change(host);
+        self.done(
+            host,
+            "Fast Startup enabled (Windows default). Shut down now resumes a saved system state at the next power-on; Restart still does a full restart.",
+            false,
+            None,
+        );
+    }
+
+    fn fast_startup_disable(&self, host: &dyn Host) {
+        xos_sys::ops::reset();
+        reg_delete_value(HIBER_POL, "HiberbootEnabled");
+        reg_set_dword(SLEEP_POWER, "HiberbootEnabled", 0);
+        self.after_change(host);
+        self.done(
+            host,
+            "Fast Startup disabled. Shut down now fully powers off the PC. Hibernate and sleep are not affected.",
             false,
             None,
         );
@@ -1962,6 +2054,12 @@ impl Page for SystemPage {
             "Hibernate",
             "Saves everything you have open to the drive and fully powers off the PC, so you can continue later. Disabling it frees several GB of disk space and also turns off Fast Startup.",
         ));
+        m = m.card(toggle_card(
+            &st,
+            "faststartup",
+            "Fast Startup",
+            "When on, Shut down saves part of Windows to the drive and resumes it at the next power-on, so the PC starts a little faster. Disabling it makes Shut down a full shutdown, which avoids problems carried over from the last session, such as a profile that fails to load or drivers and updates that never finish applying. On an SSD the extra startup time is small. Restart always does a full restart either way.",
+        ));
         m = m.card(
             card_with_desc(
                 &st,
@@ -2119,6 +2217,8 @@ impl Page for SystemPage {
             "xosplan.remove" => self.xos_plan_remove(host),
             "hibernate.enable" => self.hibernate_enable(host),
             "hibernate.disable" => self.hibernate_disable(host),
+            "faststartup.enable" => self.fast_startup_enable(host),
+            "faststartup.disable" => self.fast_startup_disable(host),
             "gpumon.enable" => self.gpu_mon_enable(host),
             "gpumon.disable" => self.gpu_mon_disable(host),
             "usagerep.enable" => self.usage_rep_enable(host),
@@ -2158,13 +2258,29 @@ mod tests {
         let page = SystemPage::new();
         let m = page.model();
         assert_eq!(m.id, "System");
-        assert_eq!(m.cards.len(), 18);
+        assert_eq!(m.cards.len(), 19);
         assert_eq!(page.label(), "System");
         for id in CARD_IDS {
             assert!(m.cards.iter().any(|c| c.id == id), "{id}");
         }
         let hidden = m.cards.iter().find(|c| c.id == "bgmsgrate").unwrap();
         assert_eq!(hidden.visible, get_windows_build_number() >= 22621);
+    }
+
+    #[test]
+    fn fast_startup_states() {
+        assert_eq!(fast_startup_state(Some(1), Some(1), None).0, "Enabled");
+        assert_eq!(fast_startup_state(Some(1), Some(0), None).0, "Disabled");
+        assert_eq!(
+            fast_startup_state(None, None, None).0,
+            status::WINDOWS_DEFAULT
+        );
+        let off = fast_startup_state(Some(0), Some(1), Some(1));
+        assert_eq!(off.0, "Disabled");
+        assert!(off.1.is_some());
+        let pol = fast_startup_state(Some(1), Some(0), Some(1));
+        assert_eq!(pol.0, "Enabled");
+        assert!(pol.1.is_some());
     }
 
     #[test]
