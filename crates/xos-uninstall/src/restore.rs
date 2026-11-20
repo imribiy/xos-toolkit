@@ -1729,6 +1729,49 @@ pub fn restore_surgical_policy_leftovers() -> bool {
         "AllowRecallEnablement",
         &[0],
     );
+    for key in [
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
+        r"HKCU\Software\Policies\Microsoft\Windows\WindowsAI",
+    ] {
+        ok &= delete_xos_dword_if_matches(key, "DisableClickToDo", &[1]);
+    }
+    ok &= delete_xos_dword_if_matches(
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
+        "DisableSettingsAgent",
+        &[1],
+    );
+    ok &= delete_xos_dword_if_matches(
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+        "LetAppsAccessSystemAIModels",
+        &[2],
+    );
+    ok &= delete_xos_dword_if_matches(
+        r"HKLM\SOFTWARE\Policies\WindowsNotepad",
+        "DisableAIFeatures",
+        &[1],
+    );
+    let paint = r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint";
+    for value in [
+        "DisableImageCreator",
+        "DisableCocreator",
+        "DisableGenerativeFill",
+    ] {
+        ok &= delete_xos_dword_if_matches(paint, value, &[1]);
+    }
+    let edge_policy = r"HKLM\SOFTWARE\Policies\Microsoft\Edge";
+    for value in [
+        "HubsSidebarEnabled",
+        "CopilotPageContext",
+        "EdgeHistoryAISearchEnabled",
+        "ComposeInlineEnabled",
+    ] {
+        ok &= delete_xos_dword_if_matches(edge_policy, value, &[0]);
+    }
+    ok &= delete_xos_dword_if_matches(edge_policy, "GenAILocalFoundationalModelSettings", &[1]);
+    let app_compat = r"HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat";
+    for value in ["DisableInventory", "DisableUAR"] {
+        ok &= delete_xos_dword_if_matches(app_compat, value, &[1]);
+    }
     ok &= delete_xos_dword_if_matches(
         r"HKLM\SOFTWARE\Policies\Microsoft\FindMyDevice",
         "AllowFindMyDevice",
