@@ -1438,7 +1438,7 @@ impl Page for StartupManagerPage {
                 .controls(vec![
                     Control::text_input("logon_search", st.logon_search.clone(), "\u{1F50D}"),
                     Control::check("logon_hide_ms", "Hide Microsoft items", st.logon_hide_ms),
-                    Control::muted(logon_count),
+                    Control::muted(logon_count).id("count"),
                     Control::button("logon_refresh", "\u{21BB}  Refresh", BtnStyle::Action)
                         .enabled(!st.logon_loading),
                 ]),
@@ -1491,7 +1491,7 @@ impl Page for StartupManagerPage {
                 .controls(vec![
                     Control::text_input("tasks_search", st.tasks_search.clone(), "\u{1F50D}"),
                     Control::check("tasks_hide_ms", "Hide Microsoft items", st.tasks_hide_ms),
-                    Control::muted(task_count),
+                    Control::muted(task_count).id("count"),
                     Control::button("tasks_refresh", "\u{21BB}  Refresh", BtnStyle::Action)
                         .enabled(!st.tasks_loading),
                 ]),

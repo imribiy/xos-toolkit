@@ -404,12 +404,12 @@ pub fn uninstall_reg_set(key: &str, value: &str, data: i32) -> bool {
         xos_sys::reg_set_dword(key, value, data)
     };
     let actual = xos_sys::reg_get_dword(key, value);
-    let verified = ok && actual == Some(data);
+    let verified = actual == Some(data);
     record_action_command(verified);
     let after = fmt_val_int(actual);
     uninstall_log(&format!(
         "  SET [{value}]: {before} -> {data}  actual={after}  {}  -- {key}",
-        if verified { "OK" } else { "FAILED" }
+        verdict_text(ok, verified)
     ));
     verified
 }
@@ -425,18 +425,25 @@ pub fn uninstall_reg_set_str(key: &str, value: &str, data: &str) -> bool {
         xos_sys::reg_set_string(key, value, data)
     };
     let actual = xos_sys::reg_get_string(key, value);
-    let verified = ok
-        && actual
-            .as_deref()
-            .map(|a| a.to_lowercase() == data.to_lowercase())
-            .unwrap_or(false);
+    let verified = actual
+        .as_deref()
+        .map(|a| a.to_lowercase() == data.to_lowercase())
+        .unwrap_or(false);
     record_action_command(verified);
     let after = fmt_val(actual.as_deref());
     uninstall_log(&format!(
         "  SETSTR [{value}]: {before} -> {data}  actual={after}  {}  -- {key}",
-        if verified { "OK" } else { "FAILED" }
+        verdict_text(ok, verified)
     ));
     verified
+}
+
+pub fn verdict_text(wrote: bool, verified: bool) -> &'static str {
+    match (verified, wrote) {
+        (true, true) => "OK",
+        (true, false) => "OK (already as requested; the write was refused)",
+        (false, _) => "FAILED",
+    }
 }
 
 pub fn uninstall_reg_set_exp(key: &str, value: &str, data: &str) -> bool {

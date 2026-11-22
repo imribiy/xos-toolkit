@@ -1025,16 +1025,26 @@ pub fn set_service_start_exact_if_present(service: &str, start: i32) -> bool {
     } else {
         0
     };
-    let ok = wrote && scm_wrote && actual == start && (!delayed || delayed_actual == 1);
+    let scm_actual = if scm_wrote {
+        Some(start)
+    } else {
+        xos_sys::get_service_start_type_scm(service)
+    };
+    let ok = actual == start && scm_actual == Some(start) && (!delayed || delayed_actual == 1);
     uninstall_log(&format!(
-        "  {service}: Start={actual}{}, expected {start}{} {}",
+        "  {service}: Start={actual}{}{}, expected {start}{} {}",
         if delayed {
             format!(" DelayedAutostart={delayed_actual}")
         } else {
             String::new()
         },
+        match scm_actual {
+            Some(v) if v == actual => String::new(),
+            Some(v) => format!(" SCM={v}"),
+            None => " SCM=unreadable".to_string(),
+        },
         if delayed { " delayed" } else { "" },
-        pass_text(ok)
+        crate::helpers::verdict_text(wrote && scm_wrote, ok)
     ));
     ok
 }
@@ -1334,6 +1344,19 @@ pub fn restore_settings_page_visibility() -> bool {
     if ok {
         ok &= uninstall_reg_del_key(backup);
     }
+    ok
+}
+
+pub fn remove_windows_update_service_protection() -> bool {
+    let ok = service_guard::remove_owned();
+    uninstall_log(&format!(
+        "  Windows Update service protection removed before the restore: {}",
+        if ok {
+            "OK"
+        } else {
+            "FAILED; recovery records retained"
+        }
+    ));
     ok
 }
 
@@ -1724,11 +1747,12 @@ pub fn restore_surgical_policy_leftovers() -> bool {
         "DisableAIDataAnalysis",
         &[1],
     );
-    ok &= delete_xos_dword_if_matches(
+    for key in [
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
         r"HKCU\Software\Policies\Microsoft\Windows\WindowsAI",
-        "AllowRecallEnablement",
-        &[0],
-    );
+    ] {
+        ok &= delete_xos_dword_if_matches(key, "AllowRecallEnablement", &[0]);
+    }
     for key in [
         r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
         r"HKCU\Software\Policies\Microsoft\Windows\WindowsAI",

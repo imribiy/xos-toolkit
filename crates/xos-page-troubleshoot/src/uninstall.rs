@@ -328,6 +328,8 @@ pub fn run_body() -> bool {
                 "OFFmeansOFF.exe"
             ))
         ));
+        log("--- WINDOWS UPDATE SERVICE PROTECTION ---");
+        rec(u::remove_windows_update_service_protection());
         log("--- PARALLEL RESTORE JOBS ---");
         let process_mitigations_job = s.spawn(|| job(u::restore_process_mitigations));
         let dma_remapping_job = s.spawn(|| job(u::restore_dma_remapping_overrides));

@@ -334,6 +334,34 @@ pub fn get_service_start_type(service_name: &str) -> i32 {
     .unwrap_or(-1)
 }
 
+pub fn get_service_start_type_scm(service_name: &str) -> Option<i32> {
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Services::{
+        CloseServiceHandle, OpenSCManagerW, OpenServiceW, QueryServiceConfigW,
+        QUERY_SERVICE_CONFIGW, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
+    };
+    let name: Vec<u16> = service_name
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    unsafe {
+        let manager = OpenSCManagerW(PCWSTR::null(), PCWSTR::null(), SC_MANAGER_CONNECT).ok()?;
+        let result = (|| {
+            let service = OpenServiceW(manager, PCWSTR(name.as_ptr()), SERVICE_QUERY_CONFIG).ok()?;
+            let mut needed = 0u32;
+            let _ = QueryServiceConfigW(service, None, 0, &mut needed);
+            let mut buf = vec![0u64; (needed as usize).max(64).div_ceil(8)];
+            let config = buf.as_mut_ptr() as *mut QUERY_SERVICE_CONFIGW;
+            let read = QueryServiceConfigW(service, Some(config), (buf.len() * 8) as u32, &mut needed);
+            let start = read.ok().map(|_| (*config).dwStartType.0 as i32);
+            let _ = CloseServiceHandle(service);
+            start
+        })();
+        let _ = CloseServiceHandle(manager);
+        result
+    }
+}
+
 pub fn get_service_start_type_text(service_name: &str) -> &'static str {
     match get_service_start_type(service_name) {
         0 => "Boot",
