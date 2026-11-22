@@ -32,6 +32,13 @@ const SVC_HOST_CONTROL_READ: &str = r"HKLM\SYSTEM\CurrentControlSet\Control";
 const SVC_BASE_PATH: &str = r"HKLM\SYSTEM\CurrentControlSet\Services\";
 const MOUSE_KEY: &str = r"HKCU\Control Panel\Mouse";
 const MEM_MGMT: &str = r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management";
+const CDR_POLICY_KEY: &str =
+    r"HKLM\SOFTWARE\Microsoft\PolicyManager\default\Connectivity\DisableCrossDeviceResume";
+const CDR_USER_KEY: &str =
+    r"HKCU\Software\Microsoft\Windows\CurrentVersion\CrossDeviceResume\Configuration";
+const CDR_HOST_KEY: &str =
+    r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell\ShellUIHosts\CrossDeviceResumeHost";
+const CDR_HOST_REDIRECT: &str = r"%SystemRoot%\system32\ShellHost.exe";
 const PS_POLICY_KEY: &str = r"HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell";
 
 const PLAYBOOK_CORE_SPLIT: [&str; 5] = ["BFE", "DcomLaunch", "mpssvc", "PlugPlay", "Power"];
@@ -100,7 +107,11 @@ const SEARCH_IFEO_KEYS: [&str; 3] = [
 const BG_MSG_TAGS: [i32; 2] = [20, 8];
 const BG_MSG_OPTIONS: [&str; 2] = ["50 Hz (Low)", "125 Hz (Default)"];
 
-const CARD_IDS: [&str; 19] = [
+// Must keep "Please reboot" so app_state raises the reboot bar.
+const RESUME_ENABLED_MSG: &str = "Resume Enabled. Please reboot.";
+const RESUME_DISABLED_MSG: &str = "Resume Disabled. Please reboot.";
+
+const CARD_IDS: [&str; 20] = [
     "uac",
     "defender",
     "bgapps",
@@ -111,6 +122,7 @@ const CARD_IDS: [&str; 19] = [
     "faststartup",
     "gpumon",
     "usagerep",
+    "resume",
     "vbs",
     "hvci",
     "spectre",
@@ -823,6 +835,22 @@ impl SystemPage {
             None,
         );
 
+        let resume_state = if get_windows_build_number() < 22631 {
+            "N/A"
+        } else {
+            let policy = reg_get_dword(CDR_POLICY_KEY, "value");
+            let allowed = reg_get_dword(CDR_USER_KEY, "IsResumeAllowed");
+            let host = reg_get_string(CDR_HOST_KEY, "ProcessPath");
+            if policy == Some(1) && allowed == Some(0) && host.is_some() {
+                "Disabled"
+            } else if policy != Some(1) && allowed != Some(0) && host.is_none() {
+                "Enabled"
+            } else {
+                "Partial"
+            }
+        };
+        self.set_badge("resume", resume_state, None);
+
         let f_deny = reg_get_dword(TERM_SRV_KEY, "fDenyTSConnections");
         let all_rdp_enabled = RDP_SERVICES.iter().all(|s| {
             let start = get_service_start_type(s);
@@ -1425,6 +1453,65 @@ impl SystemPage {
             !ok,
             None,
         );
+    }
+
+    fn cdr_policy_set(data: i32) -> bool {
+        xos_sys::run_as_ti(
+            "reg.exe",
+            &format!("add \"{CDR_POLICY_KEY}\" /v \"value\" /t REG_DWORD /d {data} /f"),
+        );
+        reg_get_dword(CDR_POLICY_KEY, "value") == Some(data)
+    }
+
+    fn cdr_host_redirect_set() -> bool {
+        let wanted =
+            || reg_get_string(CDR_HOST_KEY, "ProcessPath").as_deref() == Some(CDR_HOST_REDIRECT);
+        let direct = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE)
+            .create_subkey_with_flags(&CDR_HOST_KEY[5..], winreg::enums::KEY_WRITE)
+            .and_then(|(k, _)| k.set_value("ProcessPath", &CDR_HOST_REDIRECT));
+        if direct.is_err() || !wanted() {
+            xos_sys::run_as_ti(
+                "reg.exe",
+                &format!(
+                    "add \"{CDR_HOST_KEY}\" /v \"ProcessPath\" /t REG_SZ /d \"{CDR_HOST_REDIRECT}\" /f"
+                ),
+            );
+        }
+        wanted()
+    }
+
+    fn cdr_host_redirect_clear() -> bool {
+        let gone = || reg_get_string(CDR_HOST_KEY, "ProcessPath").is_none();
+        if !gone() {
+            let direct = winreg::RegKey::predef(winreg::enums::HKEY_LOCAL_MACHINE)
+                .open_subkey_with_flags(&CDR_HOST_KEY[5..], winreg::enums::KEY_WRITE)
+                .and_then(|k| k.delete_value("ProcessPath"));
+            if direct.is_err() || !gone() {
+                xos_sys::run_as_ti(
+                    "reg.exe",
+                    &format!("delete \"{CDR_HOST_KEY}\" /v \"ProcessPath\" /f"),
+                );
+            }
+        }
+        gone()
+    }
+
+    fn resume_enable(&self, host: &dyn Host) {
+        xos_sys::ops::reset();
+        let mut ok = Self::cdr_policy_set(0);
+        ok &= reg_set_dword(CDR_USER_KEY, "IsResumeAllowed", 1);
+        ok &= Self::cdr_host_redirect_clear();
+        self.after_change(host);
+        self.done(host, RESUME_ENABLED_MSG, !ok, None);
+    }
+
+    fn resume_disable(&self, host: &dyn Host) {
+        xos_sys::ops::reset();
+        let mut ok = Self::cdr_policy_set(1);
+        ok &= reg_set_dword(CDR_USER_KEY, "IsResumeAllowed", 0);
+        ok &= Self::cdr_host_redirect_set();
+        self.after_change(host);
+        self.done(host, RESUME_DISABLED_MSG, !ok, None);
     }
 
     fn usage_rep_enable(&self, host: &dyn Host) {
@@ -2078,6 +2165,12 @@ impl Page for SystemPage {
             "System Usage & Diagnostics Reporting",
             "Windows diagnostic services and sleep reports that collect system health and battery data. Disabling them reduces background activity, but Windows troubleshooters stop working. Requires a restart.",
         ));
+        m = m.card(toggle_card(
+            &st,
+            "resume",
+            "Resume",
+            "Resume lets you continue on this PC an app or file you were using on your phone. Disable stops the Resume host and blocks the setting. Enabling may also need the Cross Device Experience Host app, which the XOS playbook removes; it comes back from the Microsoft Store.",
+        ));
         m = m.card(
             card_with_desc(
                 &st,
@@ -2221,6 +2314,8 @@ impl Page for SystemPage {
             "faststartup.disable" => self.fast_startup_disable(host),
             "gpumon.enable" => self.gpu_mon_enable(host),
             "gpumon.disable" => self.gpu_mon_disable(host),
+            "resume.enable" => self.resume_enable(host),
+            "resume.disable" => self.resume_disable(host),
             "usagerep.enable" => self.usage_rep_enable(host),
             "usagerep.disable" => self.usage_rep_disable(host),
             "vbs.enable" => self.vbs_enable(host),
@@ -2254,11 +2349,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn resume_messages_raise_reboot_bar() {
+        for msg in [RESUME_ENABLED_MSG, RESUME_DISABLED_MSG] {
+            app_state::clear();
+            app_state::require_reboot_if_message_asks(msg);
+            assert!(app_state::reboot_required(), "{msg}");
+        }
+        app_state::clear();
+    }
+
+    #[test]
     fn model_has_all_cards() {
         let page = SystemPage::new();
         let m = page.model();
         assert_eq!(m.id, "System");
-        assert_eq!(m.cards.len(), 19);
+        assert_eq!(m.cards.len(), 20);
         assert_eq!(page.label(), "System");
         for id in CARD_IDS {
             assert!(m.cards.iter().any(|c| c.id == id), "{id}");

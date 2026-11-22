@@ -503,6 +503,10 @@ pub fn run_body() -> bool {
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\CrossDeviceResume",
             "IsResumeAllowed",
         );
+        del(
+            r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell\ShellUIHosts\CrossDeviceResumeHost",
+            "ProcessPath",
+        );
         {
             let cdr_dir = u::path_combine(
                 &u::windows_directory(),
