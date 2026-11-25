@@ -235,6 +235,23 @@ pub fn restore_data_collection_settings() -> bool {
     let present = xos_sys::get_windows_build_number() >= 26200;
 
     uninstall_log("  Restoring DataCollection values to the Windows defaults for this build");
+    let diagtrack_was_running = !present && get_service_runtime_state("DiagTrack") == "Running";
+    if diagtrack_was_running {
+        let mut stopped = xos_sys::stop_service_best_effort("DiagTrack");
+        if stopped {
+            for _ in 0..40 {
+                if get_service_runtime_state("DiagTrack") == "Stopped" {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+            stopped = get_service_runtime_state("DiagTrack") == "Stopped";
+        }
+        uninstall_log(&format!(
+            "  DiagTrack stopped for the telemetry level reset: {}",
+            if stopped { "OK" } else { "FAILED" }
+        ));
+    }
     let mut ok = true;
     for value in values {
         let should_exist = present && value != "DoNotShowFeedbackNotifications";
@@ -254,6 +271,21 @@ pub fn restore_data_collection_settings() -> bool {
             pass_text(verified)
         ));
         ok &= verified;
+    }
+
+    if !present {
+        let store = r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CPSS\Store\AllowTelemetry";
+        if xos_sys::reg_get_dword(store, "Value") == Some(0) {
+            ok &= uninstall_reg_del(store, "Value");
+            ok &= uninstall_reg_del(target, "AllowTelemetry");
+        }
+    }
+    if diagtrack_was_running {
+        let started = xos_sys::start_service_best_effort("DiagTrack");
+        uninstall_log(&format!(
+            "  DiagTrack started again: {}",
+            if started { "OK" } else { "FAILED" }
+        ));
     }
 
     if ok {

@@ -484,7 +484,7 @@ pub fn stock_disabled_tasks(build: i32) -> Vec<String> {
         r"\Microsoft\Windows\UpdateOrchestrator\Reboot_AC".to_string(),
         r"\Microsoft\Windows\UpdateOrchestrator\Reboot_Battery".to_string(),
     ];
-    if build != 26200 {
+    if build != 26200 && build != 26300 {
         stock_disabled.push(r"\Microsoft\Windows\Printing\PrintJobCleanupTask".to_string());
     }
     stock_disabled.push(r"\Microsoft\Windows\MemoryDiagnostic\RunFullMemoryDiagnostic".to_string());
@@ -586,7 +586,8 @@ mod tests {
     #[test]
     fn stock_tasks_depend_on_build() {
         assert_eq!(stock_disabled_tasks(26200).len(), 7);
-        assert_eq!(stock_disabled_tasks(26300).len(), 8);
+        assert_eq!(stock_disabled_tasks(26300).len(), 7);
+        assert_eq!(stock_disabled_tasks(22631).len(), 8);
     }
 
     #[test]
