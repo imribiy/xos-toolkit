@@ -318,19 +318,13 @@ impl Page for AppXPage {
             st.shown.len(),
             selected
         );
-        let list_note = if st.view_loading {
-            "Loading packages...".to_string()
-        } else if st.scan_failed || st.shown.is_empty() {
-            st.empty_text.clone()
-        } else {
-            String::new()
-        };
-        let mut list_controls = Vec::new();
-        if !list_note.is_empty() {
-            list_controls.push(Control::muted(list_note));
+        let show_note = !st.view_loading && (st.scan_failed || st.shown.is_empty());
+        let mut packages = Card::new("packages", "", "").not_searchable();
+        if show_note {
+            packages = packages.controls(vec![Control::muted(st.empty_text.clone())]);
         }
         if !st.scan_failed {
-            list_controls.push(Control::table(
+            packages = packages.controls(vec![Control::table(
                 "list",
                 Table::new(
                     vec![
@@ -343,7 +337,7 @@ impl Page for AppXPage {
                 )
                 .checkable(true)
                 .height(420.0),
-            ));
+            )]);
         }
         PageModel::new(
             "AppX",
@@ -362,11 +356,7 @@ impl Page for AppXPage {
                 ])
                 .controls(vec![Control::muted(count_text).id("count")]),
         )
-        .card(
-            Card::new("packages", "", "")
-                .not_searchable()
-                .controls(list_controls),
-        )
+        .card(packages)
         .card(Card::new("actions", "", "").not_searchable().actions(vec![
                 Control::button("remove", "Remove Selected", BtnStyle::Disable)
                     .enabled(!st.view_loading && selected > 0),

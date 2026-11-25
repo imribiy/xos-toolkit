@@ -5704,7 +5704,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xos-core"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5719,7 +5719,7 @@ dependencies = [
 
 [[package]]
 name = "xos-cpu"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5732,7 +5732,7 @@ dependencies = [
 
 [[package]]
 name = "xos-cpuservice"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "embed-resource",
@@ -5743,7 +5743,7 @@ dependencies = [
 
 [[package]]
 name = "xos-helpers"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5759,7 +5759,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-apps"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5777,7 +5777,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-config"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5799,7 +5799,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-cpu"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5816,7 +5816,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-gaming"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5832,7 +5832,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-network"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5850,7 +5850,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-software"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5865,7 +5865,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-system"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5883,7 +5883,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-troubleshoot"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5907,7 +5907,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-update"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5925,7 +5925,7 @@ dependencies = [
 
 [[package]]
 name = "xos-page-visuals"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -5942,7 +5942,7 @@ dependencies = [
 
 [[package]]
 name = "xos-sys"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -5958,13 +5958,14 @@ dependencies = [
 
 [[package]]
 name = "xos-toolkit"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "chrono",
  "embed-resource",
  "raw-window-handle",
  "regex",
  "rfd",
+ "serde_json",
  "slint",
  "slint-build",
  "windows",
@@ -5986,7 +5987,7 @@ dependencies = [
 
 [[package]]
 name = "xos-uninstall"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",
@@ -6006,7 +6007,7 @@ dependencies = [
 
 [[package]]
 name = "xos-winupdate"
-version = "0.5.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "base64",

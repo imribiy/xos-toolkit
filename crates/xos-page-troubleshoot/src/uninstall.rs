@@ -328,6 +328,8 @@ pub fn run_body() -> bool {
                 "OFFmeansOFF.exe"
             ))
         ));
+        log("--- WINDOWS UPDATE SERVICE PROTECTION ---");
+        rec(u::remove_windows_update_service_protection());
         log("--- PARALLEL RESTORE JOBS ---");
         let process_mitigations_job = s.spawn(|| job(u::restore_process_mitigations));
         let dma_remapping_job = s.spawn(|| job(u::restore_dma_remapping_overrides));
@@ -500,6 +502,10 @@ pub fn run_body() -> bool {
         del(
             r"HKCU\Software\Microsoft\Windows\CurrentVersion\CrossDeviceResume",
             "IsResumeAllowed",
+        );
+        del(
+            r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell\ShellUIHosts\CrossDeviceResumeHost",
+            "ProcessPath",
         );
         {
             let cdr_dir = u::path_combine(
@@ -1665,6 +1671,13 @@ pub fn run_body() -> bool {
                 "ShowHibernateOption",
             ));
         }
+        // Fast Startup: the Toolkit System card can turn it off; 1 is the clean-Windows value.
+        rec(u::uninstall_reg_set(
+            r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power",
+            "HiberbootEnabled",
+            1,
+        ));
+        log("  Fast Startup restored to the Windows default (HiberbootEnabled=1)");
         log("--- USB / PCIE / DISK POWER SAVINGS ---");
         del(
             r"HKLM\SYSTEM\CurrentControlSet\Services\USBHUB3\Parameters",
@@ -1993,7 +2006,7 @@ pub fn run_body() -> bool {
         );
         rec(u::restore_xos_boot_description_and_volume_label());
         log("--- CLEANUP XOS ARTIFACTS ---");
-        for xos_task in ["XOS-DefenderDisable", "XOSLogonFix"] {
+        for xos_task in ["XOS-DefenderDisable", "XOSLogonFix", "XOS-ReservedStorage"] {
             if xos_sys::get_task_state(&format!(r"\{xos_task}")) < 0 {
                 log(&format!("  {xos_task} task not present; nothing to delete"));
             } else {
@@ -2010,7 +2023,18 @@ pub fn run_body() -> bool {
             if Path::new(&xos_dd).is_file() {
                 let _ = std::fs::remove_file(&xos_dd);
             }
+            let xos_rs = xos_sys::expand_environment_variables(r"%windir%\XOS-RS.ps1");
+            if Path::new(&xos_rs).is_file() {
+                let _ = std::fs::remove_file(&xos_rs);
+            }
         }
+        del(r"HKLM\SOFTWARE\XOSToolkit", "ReservedStorageBootTries");
+        u::uninstall_log_run_ti(
+            "DISM reserved storage enabled",
+            "dism.exe",
+            "/Online /Set-ReservedStorageState /State:Enabled /NoRestart",
+            false,
+        );
         {
             let taskbar_bat = xos_sys::expand_environment_variables(
                 r"%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\taskbar.bat",

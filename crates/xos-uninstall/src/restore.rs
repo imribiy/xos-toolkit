@@ -235,6 +235,23 @@ pub fn restore_data_collection_settings() -> bool {
     let present = xos_sys::get_windows_build_number() >= 26200;
 
     uninstall_log("  Restoring DataCollection values to the Windows defaults for this build");
+    let diagtrack_was_running = !present && get_service_runtime_state("DiagTrack") == "Running";
+    if diagtrack_was_running {
+        let mut stopped = xos_sys::stop_service_best_effort("DiagTrack");
+        if stopped {
+            for _ in 0..40 {
+                if get_service_runtime_state("DiagTrack") == "Stopped" {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+            stopped = get_service_runtime_state("DiagTrack") == "Stopped";
+        }
+        uninstall_log(&format!(
+            "  DiagTrack stopped for the telemetry level reset: {}",
+            if stopped { "OK" } else { "FAILED" }
+        ));
+    }
     let mut ok = true;
     for value in values {
         let should_exist = present && value != "DoNotShowFeedbackNotifications";
@@ -254,6 +271,21 @@ pub fn restore_data_collection_settings() -> bool {
             pass_text(verified)
         ));
         ok &= verified;
+    }
+
+    if !present {
+        let store = r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CPSS\Store\AllowTelemetry";
+        if xos_sys::reg_get_dword(store, "Value") == Some(0) {
+            ok &= uninstall_reg_del(store, "Value");
+            ok &= uninstall_reg_del(target, "AllowTelemetry");
+        }
+    }
+    if diagtrack_was_running {
+        let started = xos_sys::start_service_best_effort("DiagTrack");
+        uninstall_log(&format!(
+            "  DiagTrack started again: {}",
+            if started { "OK" } else { "FAILED" }
+        ));
     }
 
     if ok {
@@ -1025,16 +1057,26 @@ pub fn set_service_start_exact_if_present(service: &str, start: i32) -> bool {
     } else {
         0
     };
-    let ok = wrote && scm_wrote && actual == start && (!delayed || delayed_actual == 1);
+    let scm_actual = if scm_wrote {
+        Some(start)
+    } else {
+        xos_sys::get_service_start_type_scm(service)
+    };
+    let ok = actual == start && scm_actual == Some(start) && (!delayed || delayed_actual == 1);
     uninstall_log(&format!(
-        "  {service}: Start={actual}{}, expected {start}{} {}",
+        "  {service}: Start={actual}{}{}, expected {start}{} {}",
         if delayed {
             format!(" DelayedAutostart={delayed_actual}")
         } else {
             String::new()
         },
+        match scm_actual {
+            Some(v) if v == actual => String::new(),
+            Some(v) => format!(" SCM={v}"),
+            None => " SCM=unreadable".to_string(),
+        },
         if delayed { " delayed" } else { "" },
-        pass_text(ok)
+        crate::helpers::verdict_text(wrote && scm_wrote, ok)
     ));
     ok
 }
@@ -1334,6 +1376,19 @@ pub fn restore_settings_page_visibility() -> bool {
     if ok {
         ok &= uninstall_reg_del_key(backup);
     }
+    ok
+}
+
+pub fn remove_windows_update_service_protection() -> bool {
+    let ok = service_guard::remove_owned();
+    uninstall_log(&format!(
+        "  Windows Update service protection removed before the restore: {}",
+        if ok {
+            "OK"
+        } else {
+            "FAILED; recovery records retained"
+        }
+    ));
     ok
 }
 
@@ -1724,11 +1779,55 @@ pub fn restore_surgical_policy_leftovers() -> bool {
         "DisableAIDataAnalysis",
         &[1],
     );
-    ok &= delete_xos_dword_if_matches(
+    for key in [
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
         r"HKCU\Software\Policies\Microsoft\Windows\WindowsAI",
-        "AllowRecallEnablement",
-        &[0],
+    ] {
+        ok &= delete_xos_dword_if_matches(key, "AllowRecallEnablement", &[0]);
+    }
+    for key in [
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
+        r"HKCU\Software\Policies\Microsoft\Windows\WindowsAI",
+    ] {
+        ok &= delete_xos_dword_if_matches(key, "DisableClickToDo", &[1]);
+    }
+    ok &= delete_xos_dword_if_matches(
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsAI",
+        "DisableSettingsAgent",
+        &[1],
     );
+    ok &= delete_xos_dword_if_matches(
+        r"HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy",
+        "LetAppsAccessSystemAIModels",
+        &[2],
+    );
+    ok &= delete_xos_dword_if_matches(
+        r"HKLM\SOFTWARE\Policies\WindowsNotepad",
+        "DisableAIFeatures",
+        &[1],
+    );
+    let paint = r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Paint";
+    for value in [
+        "DisableImageCreator",
+        "DisableCocreator",
+        "DisableGenerativeFill",
+    ] {
+        ok &= delete_xos_dword_if_matches(paint, value, &[1]);
+    }
+    let edge_policy = r"HKLM\SOFTWARE\Policies\Microsoft\Edge";
+    for value in [
+        "HubsSidebarEnabled",
+        "CopilotPageContext",
+        "EdgeHistoryAISearchEnabled",
+        "ComposeInlineEnabled",
+    ] {
+        ok &= delete_xos_dword_if_matches(edge_policy, value, &[0]);
+    }
+    ok &= delete_xos_dword_if_matches(edge_policy, "GenAILocalFoundationalModelSettings", &[1]);
+    let app_compat = r"HKLM\SOFTWARE\Policies\Microsoft\Windows\AppCompat";
+    for value in ["DisableInventory", "DisableUAR"] {
+        ok &= delete_xos_dword_if_matches(app_compat, value, &[1]);
+    }
     ok &= delete_xos_dword_if_matches(
         r"HKLM\SOFTWARE\Policies\Microsoft\FindMyDevice",
         "AllowFindMyDevice",

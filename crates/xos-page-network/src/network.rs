@@ -289,19 +289,20 @@ pub fn edge_install_state_from(
     .to_string()
 }
 
-pub fn webview_install_state_from(install: Option<i32>, update: Option<i32>) -> String {
-    let state = combined_edge_policy_state(install, update, None, None, false);
-    if state < 0 {
-        return "Partial".to_string();
+pub fn webview_install_state_from(
+    install: Option<i32>,
+    update: Option<i32>,
+    install_default: Option<i32>,
+    update_default: Option<i32>,
+) -> String {
+    if install_policy_state(install, install_default, true) == 0
+        || update_policy_state(update, update_default, true) == 0
+    {
+        "Disabled"
+    } else {
+        "Enabled"
     }
-    let explicit_policy = install.is_some() || update.is_some();
-    if !explicit_policy {
-        return status::AUTOMATIC.to_string();
-    }
-    if install.is_none() || update.is_none() {
-        return "Partial".to_string();
-    }
-    if state == 1 { "Enabled" } else { "Disabled" }.to_string()
+    .to_string()
 }
 
 pub fn runtime_text(files: bool, registered: bool) -> &'static str {
@@ -348,7 +349,9 @@ fn get_edge_install_state() -> String {
 fn get_webview_install_state() -> String {
     let install = xos_sys::reg_get_dword(EDGE_UPDATE_POL, &format!("Install{}", webview2::GUID));
     let update = xos_sys::reg_get_dword(EDGE_UPDATE_POL, &format!("Update{}", webview2::GUID));
-    webview_install_state_from(install, update)
+    let install_default = xos_sys::reg_get_dword(EDGE_UPDATE_POL, "InstallDefault");
+    let update_default = xos_sys::reg_get_dword(EDGE_UPDATE_POL, "UpdateDefault");
+    webview_install_state_from(install, update, install_default, update_default)
 }
 
 fn nagle_log_text(lacking: &[String], names: &std::collections::HashMap<String, String>) -> String {
@@ -1120,11 +1123,70 @@ mod tests {
 
     #[test]
     fn webview_policy() {
-        assert_eq!(webview_install_state_from(None, None), "Automatic");
-        assert_eq!(webview_install_state_from(Some(1), Some(1)), "Enabled");
-        assert_eq!(webview_install_state_from(Some(0), Some(0)), "Disabled");
-        assert_eq!(webview_install_state_from(Some(1), None), "Partial");
-        assert_eq!(webview_install_state_from(Some(1), Some(0)), "Partial");
+        assert_eq!(
+            webview_install_state_from(None, None, None, None),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(1), Some(1), None, None),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(0), Some(0), None, None),
+            "Disabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(1), None, None, None),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(None, Some(1), None, None),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(1), Some(0), None, None),
+            "Disabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(0), None, None, None),
+            "Disabled"
+        );
+        assert_eq!(
+            webview_install_state_from(None, Some(0), None, None),
+            "Disabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(5), Some(2), None, None),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(None, None, Some(0), None),
+            "Disabled"
+        );
+        assert_eq!(
+            webview_install_state_from(None, None, Some(2), None),
+            "Disabled"
+        );
+        assert_eq!(
+            webview_install_state_from(None, None, None, Some(0)),
+            "Disabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(1), None, Some(0), None),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(Some(1), Some(1), Some(0), Some(0)),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(None, None, Some(1), Some(1)),
+            "Enabled"
+        );
+        assert_eq!(
+            webview_install_state_from(None, None, Some(7), Some(9)),
+            "Enabled"
+        );
     }
 
     #[test]

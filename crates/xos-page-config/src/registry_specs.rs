@@ -817,6 +817,24 @@ pub(super) fn build_registry_specs() -> Vec<RegistrySpec> {
             &["SvcHostSplitDisable"],
         );
     }
+    add(
+        &mut list,
+        r"HKLM\SOFTWARE\Microsoft\PolicyManager\default\Connectivity\DisableCrossDeviceResume",
+        22631,
+        &["value"],
+    );
+    add(
+        &mut list,
+        r"HKCU\Software\Microsoft\Windows\CurrentVersion\CrossDeviceResume\Configuration",
+        22631,
+        &["IsResumeAllowed"],
+    );
+    add(
+        &mut list,
+        r"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell\ShellUIHosts\CrossDeviceResumeHost",
+        22631,
+        &["ProcessPath"],
+    );
     let mut seen = std::collections::HashSet::new();
     list.retain(|spec| seen.insert(format!("{}\0{}", spec.path, spec.name).to_uppercase()));
     list

@@ -308,6 +308,10 @@ component TableView inherits Rectangle {
                     padding-right: 8px;
                     spacing: 6px;
                     if c.checkable: CheckBox {
+                        property <bool> ext: row.checked;
+                        property <string> ext-id: row.id;
+                        changed ext => { self.checked = self.ext; }
+                        changed ext-id => { self.checked = self.ext; }
                         accessible-label: row.label;
                         accessible-id: card-id + "/" + c.id + "/row/" + row.id + "/check";
                         width: 26px;

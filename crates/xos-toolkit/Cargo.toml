@@ -24,6 +24,7 @@ xos-page-config.workspace = true
 xos-page-troubleshoot.workspace = true
 chrono.workspace = true
 regex.workspace = true
+serde_json.workspace = true
 windows.workspace = true
 winreg.workspace = true
 raw-window-handle = "0.6.2"

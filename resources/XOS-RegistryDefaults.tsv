@@ -13,6 +13,7 @@ HKCU\Control Panel\Accessibility\Keyboard Response	Flags	sz	126	*
 HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile	NetworkThrottlingIndex	dword	10	*
 HKLM\SYSTEM\CurrentControlSet\Control\FileSystem	LongPathsEnabled	dword	0	*
 HKLM\SYSTEM\CurrentControlSet\Control	SvcHostSplitThresholdInKB	dword	3670016	*
+HKLM\SYSTEM\CurrentControlSet\Control	WaitToKillServiceTimeout	sz	5000	*
 HKLM\SYSTEM\CurrentControlSet\Services\BFE	SvcHostSplitDisable	dword	1	*
 HKLM\SYSTEM\CurrentControlSet\Services\mpssvc	SvcHostSplitDisable	dword	1	*
 HKLM\SYSTEM\CurrentControlSet\Services\RasMan	SvcHostSplitDisable	dword	1	*
@@ -24,7 +25,7 @@ HKLM\SOFTWARE\Microsoft\PolicyManager\default\Experience\AllowCortana	value	dwor
 HKLM\SOFTWARE\Microsoft\PolicyManager\default\System\AllowExperimentation	value	dword	1	*
 HKLM\SOFTWARE\Microsoft\PolicyManager\default\Connectivity\DisableCrossDeviceResume	value	dword	0	22631,26200,26300
 HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WTDS\FeatureFlags	BlockUxDisabled	dword	0	22631,26200,26300
-HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WTDS\FeatureFlags	TelemetryCallsEnabled	dword	0	22631,26200
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WTDS\FeatureFlags	TelemetryCallsEnabled	dword	0	22631,26200,26300
 HKLM\Software\Microsoft\SQMClient\Windows	CEIPEnable	dword	0	*
 HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager	FeatureManagementEnabled	dword	0	*
 HKCU\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager	RotatingLockScreenEnabled	dword	1	*

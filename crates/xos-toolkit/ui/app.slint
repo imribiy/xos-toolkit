@@ -128,7 +128,8 @@ export component AppWindow inherits Window {
 
     callback navigate(string);
     callback search-changed(string);
-    callback set-dark(bool);
+    callback open-settings();
+    in property <bool> settings-active;
     callback banner-dismiss();
     callback banner-reboot();
     callback dialog-choose(int);
@@ -260,39 +261,25 @@ export component AppWindow inherits Window {
                         }
                     }
                     Rectangle {
-                        width: 28px;
+                        width: 32px;
+                        height: 32px;
+                        y: (parent.height - self.height) / 2;
+                        border-radius: 6px;
+                        background: root.settings-active ? Theme.sidebar-active : (settings-ta.has-hover ? Theme.hover-overlay : transparent);
                         accessible-role: button;
-                        accessible-label: "Light theme";
-                        accessible-id: "theme/light";
-                        accessible-action-default => { if (!Modal.open) { root.set-dark(false); } }
-                        TouchArea {
+                        accessible-label: "Settings";
+                        accessible-id: "nav/settings";
+                        accessible-action-default => { if (!Modal.open) { root.open-settings(); } }
+                        settings-ta := TouchArea {
                             mouse-cursor: pointer;
-                            clicked => { root.set-dark(false); }
+                            clicked => { root.open-settings(); }
                         }
                         Text {
                             accessible-role: none;
-                            text: "\u{E706}";
+                            text: "\u{E90F}";
                             font-family: "Segoe MDL2 Assets";
-                            font-size: 14px;
-                            color: Theme.dark ? Theme.text-muted : Theme.text-primary;
-                        }
-                    }
-                    Rectangle {
-                        width: 28px;
-                        accessible-role: button;
-                        accessible-label: "Dark theme";
-                        accessible-id: "theme/dark";
-                        accessible-action-default => { if (!Modal.open) { root.set-dark(true); } }
-                        TouchArea {
-                            mouse-cursor: pointer;
-                            clicked => { root.set-dark(true); }
-                        }
-                        Text {
-                            accessible-role: none;
-                            text: "\u{E708}";
-                            font-family: "Segoe MDL2 Assets";
-                            font-size: 14px;
-                            color: Theme.dark ? Theme.text-primary : Theme.text-muted;
+                            font-size: 15px;
+                            color: root.settings-active ? Theme.accent-blue : Theme.text-secondary;
                         }
                     }
                 }

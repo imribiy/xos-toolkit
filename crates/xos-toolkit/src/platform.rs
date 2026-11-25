@@ -43,6 +43,51 @@ pub fn mute_dialog(key: &str) -> std::io::Result<()> {
     k.set_value(key, &1u32)
 }
 
+pub fn system_dpi() -> u32 {
+    let dpi = unsafe { windows::Win32::UI::HiDpi::GetDpiForSystem() };
+    if dpi == 0 {
+        96
+    } else {
+        dpi
+    }
+}
+
+pub fn max_scale_for_min_window(min_width: f32, min_height: f32) -> f32 {
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetSystemMetrics, SM_CXFULLSCREEN, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SM_CYFULLSCREEN, SM_CYSIZEFRAME,
+    };
+    let (w, h) = unsafe {
+        let pad = GetSystemMetrics(SM_CXPADDEDBORDER);
+        (
+            GetSystemMetrics(SM_CXFULLSCREEN) - 2 * (GetSystemMetrics(SM_CXSIZEFRAME) + pad),
+            GetSystemMetrics(SM_CYFULLSCREEN) - (GetSystemMetrics(SM_CYSIZEFRAME) + pad),
+        )
+    };
+    if w <= 0 || h <= 0 {
+        return f32::MAX;
+    }
+    (w as f32 / min_width).min(h as f32 / min_height)
+}
+
+pub fn muted_dialog_count() -> usize {
+    RegKey::predef(HKEY_CURRENT_USER)
+        .open_subkey(DIALOGS_KEY)
+        .map(|k| {
+            k.enum_values()
+                .filter_map(|v| v.ok())
+                .filter(|(name, _)| k.get_value::<u32, _>(name).map(|v| v == 1).unwrap_or(false))
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+pub fn reset_muted_dialogs() -> std::io::Result<()> {
+    match RegKey::predef(HKEY_CURRENT_USER).delete_subkey_all(DIALOGS_KEY) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        r => r,
+    }
+}
+
 pub fn user_name() -> String {
     std::env::var("USERNAME").unwrap_or_default()
 }

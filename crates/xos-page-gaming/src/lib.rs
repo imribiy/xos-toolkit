@@ -801,8 +801,8 @@ impl Page for GamingPage {
                 "Full Screen Exclusive (FSE) gives a game direct control of the screen. Full Screen Optimizations (FSO) is the Windows default and makes Alt-Tab faster. Neither is best for every game, so try both. Disabling Game Bar also turns off Game Mode and background game recording.",
             )
             .controls(vec![
-                Control::chip(gb.text, gb.tone).tooltip(gb.tooltip),
-                Control::chip(fso.text, fso.tone).tooltip(fso.tooltip),
+                Control::chip(gb.text, gb.tone).tooltip(gb.tooltip).id("gb"),
+                Control::chip(fso.text, fso.tone).tooltip(fso.tooltip).id("fso"),
             ])
             .controls(vec![Control::heading("Combined")])
             .actions(vec![
